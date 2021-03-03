@@ -7,6 +7,10 @@ from IPython.display import Image
 Image("/Users/mbpr/GitHub/Acea-Smart-Water-Analytics/image/toppic.jpeg")
 ```
 
+
+
+
+    
 ![jpeg](output_1_0.jpg)
     
 
@@ -42,1752 +46,1732 @@ Finally, OIR/FEVD analysis of VAR and sensitivity analysis of LSTM are reported 
 ## Import Libraries
 
 
-    <details>
-      <summary>Click to expand!</summary>
-      
-      ```python
-      # Import libraries
-      import pandas as pd
-      import numpy as np
-      import os
-      import scipy
-      from datetime import datetime, date 
-      # from termcolor import colored
-      import re
-      import math
-      import missingno as mnso
-      from functools import partial
-
-      import seaborn as sns
-      import matplotlib
-      import matplotlib.pyplot as plt
-      from matplotlib.axes._axes import _log as matplotlib_axes_logger
-      # matplotlib_axes_logger.setLevel('ERROR')
-
-      import tensorflow as tf
-      import keras
-      from sklearn import linear_model
-      from sklearn.preprocessing import MinMaxScaler, StandardScaler
-      from sklearn.metrics import mean_absolute_error, mean_squared_error
-      from sklearn.decomposition import PCA
-
-      import statsmodels
-      import statsmodels.stats.stattools
-      from statsmodels.tsa.seasonal import seasonal_decompose
-      from statsmodels.tsa.stattools import grangercausalitytests
-      from statsmodels.tsa import vector_ar
-      from statsmodels.tsa.api import VAR
-      from statsmodels.tsa.vector_ar import vecm
-      from statsmodels.graphics.tsaplots import plot_acf
-      from statsmodels.graphics.tsaplots import plot_pacf
-
-      import warnings
-      from statsmodels.tools.sm_exceptions import ValueWarning, HypothesisTestWarning
-      warnings.simplefilter('ignore', ValueWarning)
-      warnings.simplefilter('ignore', HypothesisTestWarning)
-      warnings.filterwarnings('ignore', category=RuntimeWarning)
-
-      image_path = '../input/acea-water-images/'
-      datapath = '../input/acea-water-prediction/'
-      modelpath = '../input/aceawatermodels/'
-      ```
-    </details>
-
-    ## Plotting Functions
-
-    <details>
-      <summary>Click to expand!</summary>
-
-      ```python
-      # plotting functions
-      def feature_plots(data):
-          """Plot each group of features of aquifer dataframe"""
-          date_flag = 0
-          df = data.copy()
-          if df is pd.Series: 
-              df = df.to_frame()
-          # create Date column
-          if not 'Date' in df.columns.values:
-              df['Date'] = df.index
-              date_flag = 1
-          # plot Rainfalls
-          if df.columns.str.contains('Rainfall.*').any():
-              sns.relplot(x='Date', y='value', col='Feature', col_wrap=5, kind='line', 
-                          data = df.filter(regex='Date|^Rainfall_.+').melt(
-                                  id_vars='Date', var_name='Feature', ignore_index=False))
-              plt.suptitle('Rainfalls', y=1.02)
-          # plot gounrdwaters and Volumes
-          if df.columns.str.contains('Depth_.*').any():
-              sns.relplot(x='Date', y='value', hue='Feature', kind='line', 
-                          data = df.filter(regex='Date|^Depth_.+').melt(
-                                  id_vars='Date', var_name='Feature', ignore_index=False))
-              plt.suptitle('Groundwaters', y=1.02)
-          if df.columns.str.contains('Volume.*').any():
-              sns.relplot(x='Date', y='value', hue='Feature', kind='line', 
-                          data = df.filter(regex='Date|^Volume_.+').melt(
-                                  id_vars='Date', var_name='Feature', ignore_index=False))
-              plt.suptitle('Volumes', y=1.02)
-          # plot Temperatures
-          if df.columns.str.contains('Temperature.*').any():
-              sns.relplot(x='Date', y='value', col='Feature', kind='line', 
-                          data = df.filter(regex='Date|^Temperature.+').melt(
-                                  id_vars='Date', var_name='Feature', ignore_index=False))
-              plt.suptitle('Temperatures', y=1.02)
-          # plot Hydrometry
-          if df.columns.str.contains('Hydrome.*').any():
-              sns.relplot(x='Date', y='value', col='Feature', kind='line', 
-                          data = df.filter(regex='Date|^Hydrometry_.+').melt(
-                                  id_vars='Date', var_name='Feature', ignore_index=False))
-              plt.suptitle('Hydrometries', y=1.02)
-          # plot Flow Rate
-          if df.columns.str.contains('Flow.*').any():
-              sns.relplot(x='Date', y='value', hue='Feature', kind='line', 
-                          data = df.filter(regex='Date|^Flow_.+').melt(
-                                  id_vars='Date', var_name='Feature', ignore_index=False))
-              plt.suptitle('Flow Rates', y=1.02)
-          if df.columns.str.contains('Lake.*').any():
-              sns.relplot(x='Date', y='value', hue='Feature', kind='line', 
-                          data = df.filter(regex='Date|^Lake_.+').melt(
-                                  id_vars='Date', var_name='Feature', ignore_index=False))
-              plt.suptitle('Lake Levels', y=1.02)
-          plt.show()
-          if date_flag:
-              df.drop(columns='Date', inplace=True)
-
-      def water_spring_feature_plots(df):
-          """Plot each group of features of aquifer dataframe"""
-          date_flag = 0
-          # create Date column
-          if not 'Date' in df.columns.values:
-              df['Date'] = df.index
-              date_flag = 1
-          # plot rainfalls
-          sns.relplot(x='Date', y='value', col='Feature', col_wrap=5, kind='line',
-                      data = df.filter(regex='Date|^Rainfall_.+').melt(
-                              id_vars='Date', var_name='Feature', ignore_index=False))
-          plt.suptitle('Rainfalls', y=1.02)
-          # plot groundwater depths
-          sns.relplot(x='Date', y='value', hue='Feature', kind='line',
-                      data = df.filter(regex='Date|^Depth_.+').melt(
-                              id_vars='Date', var_name='Feature', ignore_index=False))
-          plt.suptitle('Groundwaters', y=1.02)
-          # plot flow rate
-          sns.relplot(x='Date', y='value', hue='Feature', kind='line',
-                      data = df.filter(regex='Date|^Flow_.+').melt(
-                              id_vars='Date', var_name='Feature', ignore_index=False))
-          plt.suptitle('Flow Rates', y=1.02)
-          # plot temperatures
-          sns.relplot(x='Date', y='value', col='Feature', kind='line',
-                      data = df.filter(regex='Date|^Temperature.+').melt(
-                              id_vars='Date', var_name='Feature', ignore_index=False))
-          plt.suptitle('Temperatures', y=1.02)
-          if date_flag:
-              df.drop(columns='Date', inplace=True)
-
-      def missingval_plot(df, figsize=(20,6), show=True):
-          """
-          Visualize index location of missin values of each feature.
-          Doesn't work for 1-dim df.
-          df: pd.DataFrame 
-          """
-          # check all are bool
-          if (df.dtypes != bool).any():
-              df = df.reset_index().T.isna()
-          f, ax = plt.subplots(nrows=1, ncols=1, figsize=figsize)
-          g = sns.heatmap(df, cmap='Blues', cbar=True, yticklabels=df.index.values)
-          # customize colorbar
-          colorbar = g.collections[0].colorbar
-          colorbar.set_ticks([0, 1])
-          colorbar.set_ticklabels(['non-missing', 'missing'])
-          # customize title
-          ax.set_title('Distribution of Missing Values', fontsize=16)
-          # customize font size in ticks
-          for tick in ax.xaxis.get_major_ticks():
-              tick.label.set_fontsize(12) 
-          for tick in ax.yaxis.get_major_ticks():
-              tick.label.set_fontsize(12)
-          if show: 
-              plt.show()
-
-      def corrtri_plot(df, figsize=(10,10)):
-          """correlation plot of the dataframe"""
-          # sns.set() #: will cause plt warning later in lag_plot
-          c = df.corr()
-          mask = np.triu(c.corr(), k=1)
-          plt.figure(figsize=figsize)
-          plt.tick_params(axis='both', which='major', labelsize=10, 
-                          bottom=False, labelbottom=False, 
-                          top=False, labeltop=True)
-          g = sns.heatmap(c, annot=True, fmt='.1f', cmap='coolwarm', 
-                          square=True, mask=mask, linewidths=1, cbar=False)
-          plt.show()
-
-      def periodogram(series, division=8):
-          """plot periodogram of the series to find most important frequency/periodicity"""
-          dt = 1
-          T = len(series.index)
-          t = np.arange(0, T, dt)
-          f = series.fillna(0)
-          n = len(t)
-          fhat = np.fft.fft(f, n, )
-          PSD = np.conj(fhat) / n
-          freq = np.arange(n) # * (1/(dt*n))
-          L = np.arange(1, np.floor(n/division), dtype="int") # n/4, otherwise too long of a stretch to see anything
-
-          plt.plot(freq[L], np.abs(PSD[L]), linewidth=2, label='Lag Importance')
-          plt.xlim(freq[L[0]], freq[L[-1]])
-          plt.legend()
-          plt.hlines(0, xmin=0, xmax=n, colors='black')
-          plt.title('Periodogram of ' + series.name)
-          plt.show()
-
-      def rfft_plot(series, ylim=(0,400)):
-          """plot real valued fourier transform to find most important frequency/periodicity"""
-          fft = tf.signal.rfft(series)
-          f_per_dataset = np.arange(0, len(fft))
-
-          n_samples_d = len(series)
-          d_per_year = 365.2524
-          years_per_dataset = n_samples_d/(d_per_year)
-          f_per_year = f_per_dataset/years_per_dataset
-
-          plt.step(f_per_year, np.abs(fft))
-          plt.xscale('log')
-          plt.ylim(*ylim)
-          plt.xlim([0.1, max(plt.xlim())])
-          plt.xticks([1, 4, 12, 52, 365.2524], labels=['1/Year', '1/quarter', '1/month', '1/week', '1/day'])
-          _ = plt.xlabel('Frequency (log scale)')
-          plt.show()
-
-      def metrics_plot(valdict, testdict=None, metrics='', verbose=False):
-          """
-          valdict/testdict (same shape): the dict form {keys : {xtick:value}} where the `metrics'
-                   should be part of the `keys'. The inner dict will be plotted as a bar.
-          metrics: ylabels of the plot and also a list containing part/all of the key(s) of 
-                   valdict/testdict.
-          verbose: report or not.
-          """
-          x = np.arange(len(valdict))
-          width=0.3
-          testdict_flag = False
-          if testdict is not None: 
-              testdict_flag = True
-              x2 = np.arange(len(testdict)) + 0.17
-              x = x-0.17
-
-          fig, axs = plt.subplots(1, len(metrics), figsize=(10,5))
-          for i, key in enumerate(metrics):
-              val_performance = [valdict[model][key] for model in valdict.keys()]
-              axs[i].bar(x, val_performance, width, label='Validation')
-              axs[i].set_xticks(np.arange(len(val_performance)))
-              axs[i].set_xticklabels(list(valdict.keys()), rotation=90)
-              axs[i].set(ylabel=key)
-              if testdict_flag:
-                  test_performance = [testdict[model][key] for model in testdict.keys()]
-                  axs[i].bar(x2, test_performance, width, label='Test')
-              _ = axs[i].legend()
-          fig.tight_layout(pad=2)
-
-          if verbose: 
-              for name, value_dict in valdict.items():
-                  print(f'{name:16s}')
-                  for key, val in value_dict.items():
-                      if key not in metrics: continue
-                      print(f'  {key:<20s}: {val:6.4f}')
-
-      def lag_plot(df, lag=1, redcols=None, figsize=(20,15)):
-          """
-          plot t+lag against t of each feature in df.
-          df: pd.dataframe
-          redcols: list/array of column names to be colored with red.
-          """
-          plt.figure(figsize=figsize)
-          for i, col in enumerate(df.columns):
-              ax = plt.subplot(len(df.columns)//5 +1 , 5, i+1)
-              color = 'k'
-              if redcols is not None and col in redcols:
-                  color = 'r'
-              pd.plotting.lag_plot(df[col], lag=lag)
-              plt.title(col, color=color)
-          ax.figure.tight_layout(pad=0.5)
-
-      def acpac_plot(data, figsize=(10,5)):
-          """Autocorrelation and Partial-aurocorrelation plots."""
-          for i, col in enumerate(data.columns):
-              fig, ax = plt.subplots(1,2,figsize=figsize)
-              plot_acf(data[col], lags=30, title='AC: ' + data[col].name, 
-                       ax=ax[0])  # missing='drop'
-              plot_pacf(data[col], lags=30, title='PAC: ' + data[col].name, 
-                       ax=ax[1])
-              plt.show()
-
-      def pca_plot(data, n_comp=None, regex=None, figsize=(5,3)):
-          """
-          Plot n_comp pricipal components of data via PCA.
-          data:   pd.DataFrame / np.ndarray
-          regex:  string pattern to filter data. 
-                  Use all data if not specified.
-          n_comp: number of components desired in PCA. 
-                  Default to data column numbers if not specified.
-          """
-          fig = plt.figure(figsize=figsize)
-          ax = fig.add_axes([0,0,1,1])
-          x = data
-          if regex is not None: 
-              x = x.filter(regex=regex)
-          xSfit = StandardScaler().fit_transform(x)
-          if n_comp is None:
-              n_comp = xSfit.shape[1]
-          pca = PCA(n_components=n_comp)
-          pca.fit(xSfit)
-          v = pca.explained_variance_ratio_.round(2)
-          xtick = range(1,n_comp+1)
-          ax.bar(xtick,v) # range(1,n_comp+1)
-          plt.xticks(xtick, x.columns, rotation='vertical')
-          plt.xlabel("PCA components")
-          plt.title("Variance Explained by each dimension")
-          plt.show()
-
-      ```
-    </details>
-
-
-    ## Data Engineering Functions
-
-    <details>
-      <summary>Click to expand!</summary>
-
-      ```python
-      # data engineering functions
-      def data_frequency_transform(data, freq, logic_dict):
-          """
-          Downsampling (daily) data to weekly/monthly/user-defined(freq) data via methods in logic_dict.
-          Inputs: 
-              data: pd.DataFrame
-              freq: a string expressing desired frequency to be transform. Eg, '2D', '7D', 'W', 'M', 'Q'.
-              logic_dict: a dict specifying which methods (value) is used for which features/cols (key).
-          """
-          collector = []
-          for regex, method in logic_dict.items(): 
-              tmp = data.filter(regex=regex).resample(freq, label='right', closed='right').agg(method)
-              collector.append(tmp)
-          return pd.concat(collector, axis=1)
-
-      def fillna(data, approach, **kwargs):
-          """
-          fill nan with the specified approach.
-          data: pd.DataFrame
-          approach: {'constant', 'mean', 'interpolate', 'movingavg', 'regression'}
-          """
-          if approach == 'constant':
-              return data.fillna(-99999)
-          elif approach == 'mean':
-              return data.fillna(data.mean(axis=0, skipna=True))
-          elif approach == 'median':
-              return data.fillna(data.median(axis=0, skipna=True))
-          elif approach == 'interpolate':
-              # data cannot contain datetime columns
-              # kwargs: method, axis, limit, limit_direction, limit_area, inplace
-              return data.interpolate(**kwargs)
-          elif approach == 'movingavg':
-              # kwargs: window, min_periods, center, win_type
-              return data.fillna(data.rolling(**kwargs).mean())
-          elif approach == 'regression':
-              # kwargs: window
-              df = data.copy()
-              names = df.columns.drop('Date', errors='ignore')
-              assert df.iloc[0].isna().sum() == 0
-              for t in range(1, df.shape[0]):
-                  for feature in names:
-                      if not np.isnan(df[feature].iloc[t]):
-                          continue
-                      parameters = names.drop(feature)
-                      parameters = df[parameters].iloc[t].dropna().index
-                      model = linear_model.LinearRegression()
-                      window = kwargs.get('window', 1)
-                      front = max(t-window,0)
-                      X = df[parameters].iloc[front:t]
-                      y = df[feature].iloc[front:t] 
-                      model.fit(X=X, y=y)
-                      df[feature].iloc[t] = model.predict(df[parameters].iloc[t:t+1])
-              return df
-          else:
-              raise ValueError('Keyword not found for approach')
-
-      # PCA requires no missing values and components to be stationary.
-      def get_component_number(data, min_variance_share=0.8, leave_out_regex = "Depth.*"):
-          """
-          Return the number of components that first retrieve the desired share of variance 
-          via Principle Component Analysis.
-          Inputs: 
-              data: pd.DataFrame 
-              min_variance_share: desired described share of variance
-              leave_out_regex: pattern of columns in data that ought to be ignored.
-          """
-          names = data.columns.drop('Date', errors='ignore').drop(
-              data.filter(regex=leave_out_regex).columns, errors='ignore')
-          x = data.loc[:, names].values
-          x = StandardScaler().fit_transform(x)
-          explained_variance = 0
-          n = 0
-          while explained_variance < min_variance_share:
-              n = n + 1
-              pca = PCA(n_components=n)
-              #principalComponents = pca.fit_transform(x)
-              pca.fit(x)
-              explained_variance = pca.explained_variance_ratio_.sum()
-          print('Share of decribed variance: ', explained_variance)
-          print('Number of components: ', n)
-          return n
-
-      # Buids you a new dataset with only the desired number of components. Inuputs:
-      def build_pca_data(data, component_number=5, leave_out_regex="Depth.*", concat=True):
-          """
-          Builds a new df with only the desired number of components via PCA.
-          Inputs: 
-              data: pd.DataFrame 
-              component_number: desired number of components.
-              leave_out_regex: pattern of columns in data that ought to be ignored.
-          """
-          ori_cols = data.columns
-          names = data.columns.drop('Date', errors='ignore').drop(
-              data.filter(regex=leave_out_regex).columns, erros='ignore')
-          x = data.loc[:, names].values
-          # y = data.loc[:, target].values
-          x = StandardScaler().fit_transform(x)
-          pca = PCA(n_components=component_number)
-          principalComponents = pca.fit_transform(x)
-          principalDf = pd.DataFrame(data=principalComponents)  # , columns=['PC1', 'PC2', 'PC3'])
-          if concat: 
-              target = data.filter(regex=leave_out_regex).columns
-              finalDf = pd.concat([principalDf, df[target]], axis=1)
-              df.reindex(columns = ori_cols)
-              return finalDf
-          return principalDf
-
-      def percent_change(data):
-          """
-          Calculate the %change between the last value and the mean of previous values.
-          Makes data more comparable if the abs values of the data change a lot.
-          Usage: df.rolling(window=20).aggregate(percent_change)
-          """
-          previous_values = data[:-1]
-          last_value = values[-1]
-          return (last_value - np.mean(previous_values)) / np.mean(previous_values)
-
-      def replace_outliers(df, window=7, k=3, method='mean'):
-          """
-          Inputs:
-              df: pd.DataFrame/Series
-              window: rolling window size to decide rolling mean/std/median.
-              k: multiplier of rolling std.
-          Return: 
-              pd.DataFrame of the same shape as input df.
-          """
-          # de-mean
-          mean_series = df.rolling(window).mean()[window-1:]
-          abs_meandiff = (df[window-1:] - mean_series).abs()
-          std_series = df.rolling(window).std()[window-1:]
-          median_series = df.rolling(window).median()[window-1:]
-          # identify >k(=3 in default) standard deviations from zero
-          this_mask = abs_meandiff > (std_series * k)
-          tmp = df[:window-1].astype(bool)
-          tmp.values[:] = False
-          this_mask = pd.concat([tmp, this_mask], axis=0)
-          # Replace these values with the median accross the data
-          if method == 'median':
-              to_use = median_series
-          elif method == 'mean':
-              to_use = mean_series
-          else: 
-              raise ValueError(f'method {method} not found.')
-          return df.mask( this_mask, to_use )
-
-      def scale(train, val, test, approach='MinMax'):
-          """scale train (and test) data via MinMaxScalar/StandardScalar"""
-          if approach == 'MinMax':
-              scaler = MinMaxScaler(feature_range=(-1, 1))
-          elif approach == 'Standard':
-              scaler = StandardScaler()
-          # save DataFrame Info
-          # fit and transform train
-          scaler = scaler.fit(train)
-          train_scaled = pd.DataFrame(scaler.transform(train), columns=train.columns, index=train.index)
-          # transform val/test
-          val_scaled = pd.DataFrame(scaler.transform(val), columns=val.columns, index=val.index)
-          test_scaled = pd.DataFrame(scaler.transform(test), columns=test.columns, index=test.index)
-          return scaler, train_scaled, val_scaled, test_scaled
-
-      # primary function: used by following self-defined classes
-      def inverse_scale(scaler, data, indices):
-          """
-          Applies to both single and multi-timestep predictions and groundtruths.
-          Inputs:
-              scaler: MinMaxScaler/StandardScaler obj from sklearn which 
-                      has fitted the orignal form of data.
-              data: scaled 3D nparray (batch, timestep, n_out). Doesn't accept 2D nparray.
-              indices: desired column indices used in scaler to scale each corresponding data columns back.
-          Return: 
-              inverse-scaled 3D array of the same shape as input data.
-          PS: To recover 2D data back, please directly use scaler.inverse_transform().
-          """
-          batch_size, timestep, n_out = data.shape[0], data.shape[1], data.shape[2]
-
-          if 'MinMaxScaler' in str(type(scaler)):
-              return ((data.reshape(-1, n_out) - scaler.min_[indices]) / scaler.scale_[indices]
-                     ).reshape(batch_size, timestep, n_out)
-          elif 'StandardScaler' in str(type(scaler)):
-              return (data.reshape(-1, n_out) * scaler.scale_[indices] + scaler.mean_[indices]
-                     ).reshape(batch_size, timestep, n_out)
-
-      # primary function: used by following self-defined classes
-      def inverse_diff(history, pred, start=1):
-          """
-          Recover corresponding value of prediction in differenced feature back to the one before diff().
-          Applies to both single and multi-timestep predictions of a single feature.
-          Inputes: 
-              history: 1d array/series of the feature.
-              pred: 2d nparray (batch, timestep) corresponding to the feature, or 
-                    1d nparray (collection of 1-step-ahead predictions) corresponding to the feature.
-              start: the starting position in history to add on values to pred.
-                     Usually start = pred[0]'s index -1 since pred is based on previous obersvation 
-                     due to diff().
-          Return: 
-              nparray with same shape as pred.
-          """
-          # if I1, nth steps and mode='normal': varlag+steps-1 :  varlag+steps-1+len(pred)
-          # if I1, n-steps and mode='last': gt[-steps-1 :-1]
-          # if I0, nth steps and mode='normal': varlag+steps : varlag+steps+len(pred)
-          # if I0, n-steps and mode='last': gt[ -steps: ]
-          if type(history) is pd.Series:
-              history = history.values
-          if pred.ndim == 2: 
-              # supports 2D last-mode calculation (reshape 1D pred to (1, -1) before calling the function)
-              # supports 3D normal-mode calculation
-              batch_size, timestep = pred.shape[0], pred.shape[1]
-              return pred.cumsum(axis=1) + \
-                  history[start:start+batch_size].repeat(timestep).reshape(batch_size, timestep)
-          if pred.ndim == 1: 
-              # only supports normal-mode model calculation.
-              return pred + history[start:start+len(pred)]
-
-
-      ```
-    </details>
-
-    ## Testing Functions
-
-    <details>
-      <summary>Click to expand!</summary>
-
-      ```python
-      # testing functions
-      def adftest(series, verbose=True, **kwargs):
-          """adfuller + printing"""
-          # kwargs: maxlag, regression, autolag
-          from statsmodels.tsa.stattools import adfuller
-          res = adfuller(series.values, **kwargs)
-          if verbose:
-              print('ADF Statistic: {:13f} \tp-value: {:10f}'.format(res[0], res[1]))
-              if 'autolag' in kwargs.keys():
-                  print('IC: {:6s} \t\t\tbest_lag: {:9d}'.format(kwargs['autolag'], res[2]))
-              print('Critical Values: ', end='')
-              for key, value in res[4].items():
-                  print('{:2s}: {:>7.3f}\t'.format(key, value), end='')
-          return res
-
-      def adfuller_table(df, verbose=False, alpha=0.05, **kwargs):
-          """iterate over adftest() to generate a table"""
-          columns = [f'AIC_{int(alpha*100)}%level', 'AIC_bestlag', f'BIC_{int(alpha*100)}%level', 'BIC_bestlag']
-          table = pd.DataFrame(columns=columns)
-          for col in df.columns: 
-              row = []
-              for autolag in ['AIC', 'BIC']:
-                  res = adftest(df[col], verbose=verbose, autolag=autolag, **kwargs)
-                  sig = True if abs(res[0])>abs(res[4][f'{int(alpha*100)}%']) else False
-                  row.extend([sig, res[2]])
-              table = table.append(pd.Series(row, index=table.columns, name=col))
-          table.index.name = 'ADFuller Table alpha={}'.format(alpha)
-          return table
-
-      def grangers_causation_table(data, xnames, ynames, maxlag, test='ssr_chi2test', alpha=None):
-          """
-          Check Granger Causality of all possible combinations of the Time series.
-          The values in the table are the P-Values/boolean (reject H0 or not). 
-          H0: X does not cause Y (iff coefs of X on Y is 0)
-          Inputs:
-              data      : pandas dataframe containing the time series variables
-              xnames    : list of TS variable names to test granger causality on ynames.
-              ynames    : list of TS variable names to be granger predicted.
-              maxlag    : max lags.
-              test      : 'ssr_ftest', 'ssr_chi2test', 'lrtest', 'params_ftest'
-              alpha     : significance level. Return boolean table if alpha is specified != None.
-          """
-          res = pd.DataFrame(np.zeros((len(xnames), len(ynames))), columns=ynames, index=xnames)
-          for c in res.columns:
-              for r in res.index:
-                  test_result = grangercausalitytests(data[[r, c]], maxlag=maxlag, verbose=False)
-                  p_values = [ round(test_result[i+1][0][test][1],4) for i in range(maxlag) ]
-                  min_p_value = np.min(p_values)
-                  res.loc[r, c] = min_p_value
-          res.columns = res.columns + '_y'
-          res.index =  res.index + '_x'
-          if alpha is None: 
-              res.index.name = 'Granger Causation Table'
-              return res
-          res.index.name = 'Granger Causation Table alpha={}'.format(alpha)
-          return res < alpha
-
-      ```
-    </details>
-
-    ## Machine Learning Class
-
-    <details>
-      <summary>Click to expand!</summary>
-
-      ```python
-      class WindowGenerator:
-          """
-          Initialize a window generator that helps slice train/val/test_df into inputs and labels
-          that is suitable for supervised learning of machine learning approaches.
-
-          Explanation for input_width, label_width, shift and total_window_size:
-              Given inputs of size (batch, input_width, features), we wish to train a model that 
-              its output shape is equivalent to the labels shape (batch, labels_width, features)
-              which has a timestep gap = shift. total_window_size = input_width+shift.
-          Eg, w=WindowGenerator(input_width=2, label_width=1, shift=1, ...)
-              Given past 2 hrs, predict the target values in the next hr. (total window is 3)
-          Eg, w=WindowGenerator(input_width=2, label_width=1, shift=2, ...)
-              Given past 2 hrs, predict the result values in the 2nd hr. (total window is 4)
-          Eg, w=WindowGenerator(input_width=2, label_width=2, shift=2, ...)
-              Given past 2 hrs, predict the result values in next 2 hrs. (total window is 4)
-          """
-
-          def __init__(self, input_width, label_width, shift, train_df, val_df, test_df, 
-                       batch_size=1, shuffle=True, mask=None, label_columns=None):
-              assert input_width + shift >= label_width, "total_window_size can't be negative."
-              # Store the raw data. [batch_size, timestep, features]
-              self.train_df = train_df
-              self.val_df = val_df
-              self.test_df = test_df
-              self.batch_size = batch_size
-              self.shuffle = shuffle # make_dataset
-
-              # Work out the label column indices.
-              self.column_indices = {name: i for i, name in enumerate(train_df.columns)}
-              self.label_columns = train_df.columns
-              if label_columns is not None:
-                  self.label_columns = [label_columns] if type(label_columns) is str else label_columns
-              self.label_columns_indices = [self.column_indices[la] for la in self.label_columns]
-
-
-              # Work out the window parameters.
-              self.input_width = input_width
-              self.label_width = label_width
-              self.shift = shift
-
-              self.total_window_size = input_width + shift
-
-              self.input_slice = slice(0, input_width) #slice from idx=0 till idx=input_width-1(included)
-              self.input_indices = np.arange(self.total_window_size)[self.input_slice]
-
-              self.label_start = self.total_window_size - self.label_width
-              self.labels_slice = slice(self.label_start, None) # slice from idx=label_start wihout end
-              self.label_indices = np.arange(self.total_window_size)[self.labels_slice]
-
-              # mask
-              self.mask = mask 
-              if mask is not None: 
-                  assert mask.shape[0] == self.test_df.shape[0]
-                  self.mask = mask[self.label_columns].values[self.label_indices[0]:]
-
-          def __repr__(self):
-              return '\n'.join([
-                  f'Total window size: {self.total_window_size}',
-                  f'Input indices: {self.input_indices}',
-                  f'Label indices: {self.label_indices}',
-                  f'shuffle: {self.shuffle}',
-                  f'Label column name(s): {self.label_columns}'])
-
-          def split_window(self, features):
-              """
-              Split data into inputs and labels.
-              features: [batch=None, self.total_window_size, features=None]
-              """
-              inputs = features[:, self.input_slice, :]
-              # return all features if self.label_columns is None
-              # Ow, return only featrues in self.label_columns in order
-              labels = features[:, self.labels_slice, :]
-              if self.label_columns is not None:
-                  labels = tf.stack(
-                      [labels[:, :, self.column_indices[name]] for name in self.label_columns],
-                      axis=-1)
-              # Slicing doesn't preserve static shape information, so set the shapes
-              # manually. This way the `tf.data.Datasets` are easier to inspect.
-              inputs.set_shape([None, self.input_width, None])
-              labels.set_shape([None, self.label_width, None])
-
-              return inputs, labels
-
-          def inverse_transform_evaluate(self, model, scaler=None, diff=None, history=None, which='test', 
-                                     multioutput='uniform_average', return_dict=False, inplace=True):
-              # doesn't provide mask evaluation
-              assert which in ['val', 'test'], f'not allowed input: which={which}'
-              # default test mode
-              pred = model.predict(self.test)
-              outputs = self.y_test
-              start = len(self.train_df)+len(self.val_df)+self.label_indices[0]
-              if which == 'val':
-                  pred = model.predict(self.val)
-                  outputs = self.y_val
-                  start = len(self.train_df)+self.label_indices[0]
-              # invert scale
-              if scaler is not None:
-                  pred = inverse_scale(scaler, pred, self.label_columns_indices)
-                  outputs = inverse_scale(scaler, outputs, self.label_columns_indices)
-              # invert diff
-              if diff is not None: 
-                  assert history is not None, 'diff is provided but history is not.'
-                  for i, col in enumerate(self.label_columns):
-                      if col not in diff:
-                          continue
-                      pred[:,:,i] = inverse_diff(history[col], pred[:,:,i], start)
-                      outputs[:,:,i] = inverse_diff(history[col], outputs[:,:,i], start )
-              # metrics
-              rmse, mae = self._core_evaluate(outputs, pred, multioutput)
-              if inplace: 
-                  self._multiout = True if multioutput=='raw_values' else False
-                  self.pred = pred
-                  self.outputs = outputs
-                  self.rmse = rmse
-                  self.mae = mae
-              if return_dict:
-                  return {'root_mean_squared_error': rmse, 'mean_absolute_error': mae}
-              return rmse, mae
-
-          def _core_evaluate(self, y_true, y_pred, multioutput):
-              # doesn't provide mask evaluation
-              n_out = len(self.label_columns)
-              rmse = mean_squared_error(y_true.reshape(-1, n_out), y_pred.reshape(-1, n_out), 
-                                       multioutput=multioutput, squared=False)
-              mae = mean_absolute_error(y_true.reshape(-1, n_out), y_pred.reshape(-1, n_out), 
-                                        multioutput=multioutput)
-              return rmse, mae
-
-          def sample_plot(self, plot_cols, model=None, max_subplots=3, figsize=(15, 10)):
-              inputs, labels = self.example # [batch_size, timestep, features]
-              plt.figure(figsize=figsize, )
-              if type(plot_cols) is str: 
-                  plot_cols = [plot_cols]
-              plot_cols_index = [self.column_indices[col] for col in plot_cols]
-
-              max_n = min(max_subplots, len(inputs)) # arg vs batch_size
-              max_j = len(plot_cols)
-              for n in range(max_n):
-                  for j in range(max_j):
-                      ax = plt.subplot(max_n, max_j, max_j*n + j+1)
-                      ax.figure.tight_layout(pad=1.0)
-                      # plot_cols[j] as Inputs
-                      plt.title(f'y:{plot_cols[j]} [scaled]')
-                      plt.plot(self.input_indices, inputs[n, :, plot_cols_index[j]],
-                               label='Inputs', marker='.', zorder=-10)
-                      # Groundtruth of plots_col[j] == labels[label_col_index] (same string)
-                      if self.label_columns:
-                          tmp = {name: i for i, name in enumerate(self.label_columns)}
-                          label_col_index = self.tmp.get(plot_cols[j], None)
-                      else:
-                          label_col_index = plot_cols_index[j]
-                      if label_col_index is None:
-                          continue
-                      plt.scatter(self.label_indices, labels[n, :, label_col_index], 
-                                  edgecolors='k', label='Groundtruth', c='#2ca02c', s=64)
-                      # Prediction of plots_col[j]
-                      if model is not None:
-                          predictions = model(inputs)
-                          plt.scatter(self.label_indices, predictions[n, :, label_col_index],
-                                    marker='X', edgecolors='k', label='Prediction', c='#ff7f0e', s=64)
-                      if n == 0:
-                          plt.legend()
-                      plt.xlabel(f'Sample {n} in batch.  Timestep [scaled]')
-
-          def plot(self, plot_cols=None, model=None, figsize=(20, 15), use_mask=False, ):
-              """
-              Plot model prediction and groundtruth (untransformed) if model is provided.
-              Otherwise, plot prediciton and groundtruth (transformed) stored inside from 
-              inverse_transform_evaluate(..., inplace=True), ie, self.pred/outputs. 
-              Output error if neither model nor self.pred/outputs is found.
-              """
-              assert isinstance(use_mask, bool)
-              labels = self.test_df[self.label_columns]
-              dates = labels[self.label_columns[0]].index[self.label_indices[0]:]
-              if plot_cols is None: 
-                  plot_cols = self.label_columns
-              if type(plot_cols) is str: 
-                  plot_cols = [plot_cols]
-              assert set(plot_cols).issubset(set(self.label_columns)), 'plot_cols must be a subset of targets'
-              label2idx = {name:i for i, name in enumerate(self.label_columns)}
-              plot_cols_index = [label2idx[x] for x in plot_cols]
-
-              # pred & gt
-              if model is not None: 
-                  pred = model.predict(self.test)
-                  gt = labels[self.label_columns].values[self.label_indices[0]:]
-                  rmse, mae = self._core_evaluate(gt, pred, multioutput='raw_values')
-              else:       # fetch from inner storage
-                  pred = self.pred
-                  gt = self.outputs
-                  if self._multiout:
-                      rmse, mae = self.rmse, self.mae
-                  else: 
-                      rmse, mae = self._core_evaluate(gt, pred, multioutput='raw_values')
-                  if gt.shape[1] == 1: 
-                      gt = gt.reshape(-1, gt.shape[2])
-                  else: 
-                      collector = []
-                      collector.append( [gt[batch,0,:] for batch in range(gt.shape[0])] )
-                      collector.append( gt[-1, 1:, :] )
-                      gt = np.concatenate(collector)
-
-              # plot
-              plt.figure(figsize=figsize, )
-              for j, name in enumerate(plot_cols):
-                  ax = plt.subplot(len(plot_cols), 1,  j+1)
-                  j = plot_cols_index[j]
-                  # groundtruth
-                  if use_mask:
-                      mask = self.mask.copy()
-                      plt.scatter(dates[~mask[:,j]], gt[~mask[:,j], j], 
-                                  c='k', linestyle='-', alpha=0.7, marker='+', label='Groundtruth')
-                  else: 
-                      plt.scatter(dates, gt[:, j], 
-                                  c='k', linestyle='-', alpha=0.7, marker='+', label='Groundtruth')
-                  # prediction: (batch_size, timestep, features)
-                  if self.label_width == 1: # normal mode
-                      plt.plot(dates, pred[:, 0, j],
-                               c='red', linestyle='-', alpha=0.5, marker='+', label='Prediction')
-                  else:                     # last mode
-                      plt.plot(dates[-pred.shape[1]:], pred[-1, :, j],
-                               c='red', linestyle='-', alpha=0.5, marker='+', label='Prediction')
-                  # layout
-                  ax.legend()
-                  plt.gca().xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%y-%b'))
-                  outstr = 'transformed' if model is not None else 'inversed transformed'
-                  plt.title('{} [{}]: RMSE={:6.4f}, MAE={:6.4f} (imputation incl.)'.format(
-                      name, outstr, rmse[j], mae[j]), )
-              ax.figure.tight_layout(pad=1.0)
-              plt.show()
-
-          def _make_dataset(self, data):
-              """convert df/data to timeseries dataset format of (inputs, labels) pairs"""
-              data = np.array(data, dtype=np.float32)
-              ds = tf.keras.preprocessing.timeseries_dataset_from_array(
-                data=data,
-                targets=None,
-                sequence_length=self.total_window_size,
-                sequence_stride=1,
-                shuffle=self.shuffle,
-                batch_size=self.batch_size,)
-              # apply split window
-              ds = ds.map(self.split_window)
-              return ds
-
-          @property
-          def train(self):
-              return self._make_dataset(self.train_df)
-
-          @property
-          def val(self):
-              return self._make_dataset(self.val_df)
-
-          @property
-          def test(self):
-              return self._make_dataset(self.test_df)
-
-          @property
-          def example(self):
-              """Get and cache an example batch of `inputs, labels` for plotting."""
-              result = getattr(self, '_example', None)
-              if result is None:
-                  # No example batch was found, so get one from the `.train` dataset
-                  result = next(iter(self.train))
-                  # And cache it for next time
-                  self._example = result
-              return result
-
-          @property
-          def X_train(self):    
-              return np.vstack( list(self.train.map(lambda x,y: x).as_numpy_iterator())
-                      ).reshape(-1, self.input_width, len(self.column_indices) )
-
-          @property
-          def X_val(self):    
-              return np.vstack( list(self.val.map(lambda x,y: x).as_numpy_iterator())
-                      ).reshape(-1, self.input_width, len(self.column_indices) )
-
-          @property
-          def X_test(self):    
-              return np.vstack( list(self.test.map(lambda x,y: x).as_numpy_iterator())
-                      ).reshape(-1, self.input_width, len(self.column_indices) )
-
-          @property
-          def y_train(self):    
-              return np.vstack( list(self.train.map(lambda x,y: y).as_numpy_iterator())
-                      ).reshape(-1, self.label_width, len(self.label_columns) )
-
-          @property
-          def y_val(self):    
-              return np.vstack( list(self.val.map(lambda x,y: y).as_numpy_iterator())
-                      ).reshape(-1, self.label_width, len(self.label_columns) )
-
-          @property
-          def y_test(self):
-              return np.vstack( list(self.test.map(lambda x,y: y).as_numpy_iterator())
-                      ).reshape(-1, self.label_width, len(self.label_columns) )
-
-      class Baseline(tf.keras.Model):
-          """Single-step naive baseline: y(t+1) = y(t)"""
-          def __init__(self, label_index=None, return_sequence=False):
-              super().__init__()
-              self.label_index = [label_index] if type(label_index) is int else label_index
-              self.return_sequence = return_sequence
-
-          def call(self, inputs):
-              if self.label_index is None:
-                  return inputs
-
-              if self.return_sequence:
-                  result = tf.stack( [inputs[:, :, j] for j in self.label_index] ,  axis=2)
-                  return result
-              else: 
-                  result = tf.stack( [inputs[:, -1, j] for j in self.label_index] ,  axis=1)
-                  return result[:, tf.newaxis, :]
-
-      class MultiStepBaseline(tf.keras.Model):
-          """
-          Multistep naive baseline
-              mode='last': y([t+1,...,t+k]) = y([t, t, ..., t])
-              mode='repeat': y([t+1,...,t+k]) = y([t-k+1, t-k+2, ..., t])
-          """
-          def __init__(self, out_steps, label_index=None, mode='last'):
-              super().__init__()
-              self.out_steps = out_steps
-              self.label_index = [label_index] if type(label_index) is int else label_index
-              self.mode = mode
-
-          def call(self, inputs):
-              if self.label_index is None and self.mode=='last': 
-                  return tf.tile(inputs[:, -1:, :], [1, self.out_steps, 1])
-              elif self.label_index is None and self.mode=='repeat':
-                  return inputs
-
-              if self.mode == 'last':
-                  result = tf.stack( [inputs[:, -1, j] for j in self.label_index] ,  axis=1)
-                  return tf.tile(result[:, tf.newaxis, :], [1, self.out_steps, 1])
-              elif self.mode == 'repeat':
-                  k = inputs.shape[1]
-                  # within 1 cycle repeat
-                  if self.out_steps <= k:
-                      return tf.stack([inputs[:, -self.out_steps:, j] for j in self.label_index], axis=2)
-                  # cyclic repeat
-                  cycle = self.out_steps // k + 1
-                  cut = cycle*k - self.out_steps
-                  tmp = tf.stack( [ inputs[:,:,j] for j in self.label_index ], axis=2)
-                  results = tf.tile(tmp, [1, cycle, 1])
-                  return results[:, cut:, :]
-              else: 
-                  raise ValueError(f'No method called {self.mode}')
-
-      def compile_and_fit(model, window, max_epochs=30, patience=2, lr_rate=0.001, verbose=2):
-          """
-          Compile the given model and fit it via given window. 
-
-          Inputs: 
-              model: self-defined machine learning model
-              window: object defined by class WindowGenerator()
-              max_epochs: desired maximum epochs when fitting model to training data
-              patience: Stop fitting if val_loss doesn't decrease for n=patience epochs.
-              verbose: show training progress in different ways if 1 or 2. Turn off if 0.
-          """
-          early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', 
-                                                            patience=patience, 
-                                                            mode='min')
-          model.compile(loss=tf.losses.MeanSquaredError(),
-                        optimizer=tf.optimizers.Adam(lr_rate),
-                        metrics=[tf.metrics.RootMeanSquaredError(), tf.metrics.MeanAbsoluteError()])
-
-          history = model.fit(window.train, epochs=max_epochs,
-                              validation_data=window.val,
-                              callbacks=[early_stopping], verbose=verbose)
-          return history
-
-      def feature_importance(model, Xdata=None, batch_size=1, scale=0.5, 
-                             verbose=False, method='const', alpha=0.05):
-          """
-          Perturb on Xdata and detect feature importance. The larger the rmse/effect is, the more 
-          important the feature is.
-          Inputs:
-              model: that accepts 3-dim data (Xdata)
-              Xdata: 3-dim input excluding groundtruth. If None, create a random normal data automatically.
-              scale: float in [0,1]. Determine the stdandard deviation of the perturbation. (~N(0, sigma))
-              alpha: significance level
-          Returns: 
-              list of rmse between original prediction and prediction after perturbation of each feature.
-          """
-          def data_gen(batch, input_width, n_out):
-              while True:
-                  x = np.random.rand(batch, input_width, n_out)  # batch x time x features
-                  yield x
-          # generate base data
-          if Xdata is None: 
-              g = data_gen(batch_size, model.input_shape[1], model.input_shape[-1]) 
-              x = np.concatenate([next(g)[0] for _ in range(50)]) # Get a sample of data
-          else: 
-              x = Xdata.copy()
-          # calculate perturbation effects
-          perturbation = None
-          if method == 'const':
-              perturbation = scale
-          elif method == 'random':
-              perturbation = np.random.normal(0.0, scale=scale, size=x.shape[:2])
-          orig_out = model.predict(x)
-          N = orig_out.size
-          collector = []
-          direction_collector = []
-          for i in range(model.input_shape[-1]):  # iterate over the three features
-              new_x = x.copy()
-              new_x[:, :, i] = new_x[:, :, i] + perturbation
-              perturbed_out = model.predict(new_x)
-              diff = perturbed_out - orig_out
-
-              effect = ((diff) ** 2).mean() ** 0.5
-              collector.append(effect)
-
-              pos, neg = (diff > 0).sum(), (diff < 0).sum()
-              if pos > N*(1-alpha): 
-                  symbol = '+'
-              elif neg > N*(1-alpha): 
-                  symbol = '-'
-              else: 
-                  symbol = ''
-              direction_collector.append( symbol )
-
-              if verbose: 
-                  print('Variable {:>4}, perturbation effect: {:>8.4f}'.format(i+1, effect))
-          return collector, direction_collector
-
-      def feature_importance_plot(importance, direction=None, names=None, model_str='LSTM', figsize=(10,8)):
-          # https://www.analyseup.com/learn-python-for-data-science/python-random-forest-feature-importance-plot.html
-
-          #Create arrays from feature importance and feature names
-          feature_importance = np.array(importance)
-          if names is None: 
-              names = np.arange(importance)+1
-          feature_names = np.array(names)
-
-          #Create a DataFrame using a Dictionary
-          data={'feature_names':feature_names,'feature_importance':feature_importance}
-          fi_df = pd.DataFrame(data)
-
-          #Sort the DataFrame in order decreasing feature importance
-          fi_df.sort_values(by=['feature_importance'], ascending=False,inplace=True)
-
-          #Define size of bar plot
-          plt.figure(figsize=figsize)
-          #Plot Searborn bar chart
-          adjusted_posi = 0.2
-          g = sns.barplot(x=fi_df['feature_importance'], y=fi_df['feature_names'])
-          if direction is not None:
-              for index, (_, row) in enumerate(fi_df.iterrows()):
-                  g.text(row.feature_importance, index+adjusted_posi,
-                         direction[index], color='black', ha="center", size=15)
-          #Add chart labels
-          plt.title( model_str + ' Feature Importance')
-          plt.xlabel('Feature Importance (rmse)')
-          plt.ylabel('Feature Names')
-      ```
-    </details>
-
-    ## VAR Class
-
-    <details>
-      <summary>Click to expand!</summary>
-
-      ```python
-      class VARresults:
-
-          def __init__(self, obj, test, mask=None, label_columns=None):
-              """
-              obj: VARResultsWrapper from statsmodels package.
-              label_columns: list of strings as prediction targets.
-              mask: shape should be in line with test.
-              """
-              assert 'VARResultsWrapper' in str(type(obj))
-              # test must be pd.DataFrame/Series
-              self.model = obj
-              self.test = test 
-              self.column_indices = {name: i for i, name in enumerate(test.columns)}
-
-              self.label_columns = test.columns
-              if label_columns is not None:
-                  self.label_columns = [label_columns] if type(label_columns) is str else label_columns
-              self.label_columns_indices = [self.column_indices[la] for la in self.label_columns]
-
-              self.gt = self.test[self.label_columns].values[self.model.k_ar:]
-              self.mask = mask 
-              if mask is not None: 
-                  assert mask.shape[0] == self.test.shape[0]
-                  self.mask = np.array(mask)[self.model.k_ar:, self.label_columns_indices]
-
-          def initialise(self):
-              """Initialise gt and delete pred"""
-              self.gt = self.test[self.label_columns].values[self.model.k_ar:]
-              if hasattr(self, 'pred'):
-                  del self.pred
-
-          def durbin_watson_test(self, verbose=False):
-              res = statsmodels.stats.stattools.durbin_watson(self.model.resid)
-              for col, value in zip(self.model.names, res):
-                  print( '{:32s}: {:>6.2f}'.format(col, value))
-              if verbose: 
-                  print( '\n'.join([
-                      'Durbin-Watson test-stat of autocorrelation of error terms:', 
-                      'd=0: perfect autocorrelation', 
-                      'd=2: no autocorrelation', 
-                      'd=4: perfect negative autocorrelation.' 
-                  ]))
-              return res
-
-          def residac_plot(self, cols=None, figsize=(16, 8), ylim=(-.3, .3)):
-              """
-              cols: can be integer/str list.
-              """
-              plt.figure(figsize=figsize)
-              # case pd.Series
-              if self.model.resid.ndim ==1:
-                  ax = pd.plotting.autocorrelation_plot(self.model.resid)
-                  ax.set(ylim=ylim)
-                  plt.title(f'Residual Autocorrelation: {resid.name}')
-                  plt.show()
-
-              # case pd.DataFrame         
-              assert cols is not None, "cols is required since model dimension > 1."
-              if type(cols) is str: cols = [cols]
-              resid = self.model.resid
-              if type(resid) is np.ndarray: 
-                  resid = pd.DataFrame(resid, columns=self.endog.columns)
-              for count, (name, series) in enumerate(resid[cols].iteritems()):
-                  ax = plt.subplot( len(cols)//3 +1, 3, count+1)
-                  ax.figure.tight_layout(pad=0.5)
-                  ax.set(ylim=ylim)
-                  pd.plotting.autocorrelation_plot(series, ax=ax)
-                  plt.title(f'Residual Autocorrelation: {name}')
-              plt.tight_layout()
-              plt.show()
-
-          def predict(self, steps=1, mode='normal', inplace=False):
-              """
-              steps: n-steps-ahead prediction if steps=n.
-              mode: 'normal': predict for each sample.
-                    'last': only predict the last sample. 
-                            Eg, predict 14 days in a row from last sample.
-              Return if inplace=False: 
-                  2D-array (predictions, features).
-              """
-              assert mode in ['normal', 'last'], 'Error: mode value not allowed'
-              varlag = self.model.k_ar
-              pred = []
-
-              if mode == 'normal':
-                  pred_collector = []
-                  for s in range(self.test.shape[0] -varlag +1 -steps):
-                      pred = self.model.forecast(y=self.test.values[s:s+varlag], steps=steps)
-                      pred_collector.append(pred)
-                  pred = np.stack(pred_collector)[:, :, self.label_columns_indices]
-                  pred = pred[:,-1,:]
-              elif mode == 'last':
-                  s = -steps -varlag
-                  pred = self.model.forecast(y=self.test.values[s:s+varlag], steps=steps)
-                  pred = pred[:, self.label_columns_indices]
-              if inplace: 
-                  self.mode = mode
-                  self.steps = steps
-                  self.pred = pred
-                  return ;
-              return pred
-
-          def inverse_transform(self, diff, history, start=None, inplace=False):
-              """
-              Inverse transform in-built pred and test on features in the diff list 
-              based on history and start and the mode you use in predict() function.
-              Applies to both 3D or 2D arrays.
-              Return: 
-                  pred, gt (if inplace=False).
-              """
-              varlag = self.model.k_ar
-              pred = self.pred.copy()
-              gt = self.gt.copy()
-              if start is None: 
-                  start = -gt.shape[0] -1
-
-              for i, col in enumerate(self.label_columns):
-                  if col not in diff: 
-                      continue
-                  if pred.ndim == 2:
-                      if self.mode == 'normal':
-                          pred[:,i] = inverse_diff(history[col], pred[:,i], start=start)
-                      elif self.mode == 'last':
-                          # -1: based on previous day: only works for I1 variable.
-                          pred[:,i] = pred[:,i].cumsum() + history[col][-self.steps-1] 
-                  elif pred.ndim ==3:
-                      pred[:,:,i] = inverse_diff(history[col], pred[:,:,i], start=start)
-                  gt[:,i] = inverse_diff(history[col], gt[:,i], start=start)
-
-              if inplace:
-                  self.pred = pred
-                  self.gt = gt
-                  return ;
-              return pred, gt
-
-          def evaluate(self, y_true=None, y_pred=None, multioutput='uniform_average', use_mask=True):
-              """
-              Calculate rmse and mae. 
-              mode: can be ['raw_values', 'uniform_average'].
-              use_mask: boolean or matrix. 
-                  Mask prediction and groudtruth when calculating performance.
-                  It should be the same shape as y_true and y_pred.
-              Return: 
-                  rmse, mae
-              """                 
-              if y_pred is None: 
-                  y_pred = self.pred.copy()
-              if y_true is None:
-                  y_true = self.gt.copy()
-                  if self.mode == 'normal':
-                      y_true = y_true[self.steps-1:]
-                  elif self.mode == 'last':
-                      y_true = y_true[-self.steps:]
-              if use_mask is True: 
-                  mask = self.mask.copy()
-                  if self.mode == 'normal':
-                      mask = mask[self.steps-1:]
-                  elif self.mode == 'last': 
-                      mask = mask[-self.steps:]
-              elif type(use_mask) is [pd.Series, pd.DataFrame, np.array, np.ndarray]:
-                  mask = use_mask
-              else:
-                  mask = None
-              return self._core_evaluate(y_true, y_pred, multioutput, mask)
-
-          def _core_evaluate(self, y_true, y_pred, multioutput, mask=None):
-              """inner private function. Shouldn't be called from outside by via member functions."""
-              if mask is not None: 
-                  rmse, mae = [], []
-                  for j in range(len(self.label_columns)):
-                      rmsee = mean_squared_error(y_true[~mask[:,j], j], y_pred[~mask[:,j], j], squared=False)
-                      maee = mean_absolute_error(y_true[~mask[:,j], j], y_pred[~mask[:,j], j])
-                      rmse.append(rmsee)
-                      mae.append(maee)
-                  rmse = np.array(rmse)
-                  mae = np.array(mae)
-                  if multioutput == 'uniform_average':
-                      rmse = rmse.mean()
-                      mae = mae.mean()
-              else:
-                  rmse = mean_squared_error(y_true, y_pred, multioutput=multioutput, squared=False)
-                  mae = mean_absolute_error(y_true, y_pred, multioutput=multioutput)
-              return rmse, mae
-
-          def inverse_transform_evaluate(self, diff, history, start=None, steps=1, 
-                                         mode='normal', multioutput='uniform_average', use_mask=False):
-              """
-              do predict(), inverse_transform(), and evaluate() all at once, but with 
-              inplace=True setting, which is fixed and not adjustable.
-              Return: 
-                  rmse, mae (follow from evaluate())
-              """
-              inplace = True
-              if inplace:
-                  self.predict(steps, mode, inplace=inplace)
-                  self.gt = self.test[self.label_columns].values[self.model.k_ar:] # initialise
-                  self.inverse_transform(diff, history, start, inplace=inplace)
-              return self.evaluate(multioutput=multioutput, use_mask=use_mask)
-
-          def plot(self, figsize=(20,15), use_mask=False):
-              """
-              plot prediction(red line) and groundtruth(black point).
-              Inputs: 
-                  figsize: figure size.
-                  use_mask: evaluate mae, rmse and plot the groundtruth with or without mask.
-              """
-              rmse, mae = self.evaluate(multioutput='raw_values', use_mask=use_mask)
-
-
-              plt.figure(figsize=figsize)
-              for j in range(len(self.label_columns)):
-                  ax = plt.subplot(len(self.label_columns), 1, j+1)
-                  dates = test[self.label_columns[j]].index[self.model.k_ar:]
-                  # groundtruth
-                  if use_mask: 
-                      mask = self.mask.copy() if use_mask == True else use_mask
-                      ax.scatter(dates[~mask[:,j]], self.gt[~mask[:,j], j], 
-                                 c='k', linestyle='-', alpha=0.7, marker='+', label='Groundtruth')
-                  else: 
-                      ax.scatter(dates, self.gt[:, j], 
-                                 c='k', linestyle='-', alpha=0.7, marker='+', label='Groundtruth')
-                  # prediction
-                  if self.mode == 'normal':
-                      ax.plot(dates[self.steps-1:], self.pred[:,j],
-                              c='red', linestyle='-', alpha=0.5, marker='+', label='Prediction')
-                  elif self.mode == 'last':
-                      ax.plot(dates[-self.steps:], self.pred[:,j],
-                             c='r', linestyle='-', alpha=0.5, marker='+', label='Prediction')
-                  # title and x/y-labels
-                  ax.set(title='{:>32s}: RMSE={:6.4f}, MAE={:6.4f}'.format(targets[j], rmse[j], mae[j]), )
-                  plt.gca().xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%y-%b'))
-                  ax.legend()
-              ax.figure.tight_layout(pad=1)
-              plt.show()
-
-          def irplot(self, impulse, response, periods=14, orth=False, method='asym', 
-                 repl=1000, alpha=0.05, seed=None, fontsize=16, supfontsize=24,
-                 figsize=(17,30), max_col_wrap=3, rect=(0,0,1,0.96)):
-              """
-              Plot Impulse Reponse of `impulse' on `response'.
-              Inputs:
-                  impulse: a list of strings containing which features cause impulse(s) on response.
-                  response: a list of strings containing which features response the shock.
-                  periods: the number of periods in which a shock is observed in plots.
-                  orth: bool. Plot Orthogonalised IR if True.
-                  method: {'asym', 'efron', 'hall'}
-                      'asym': use asymptotic stderr as error band.
-                      'efron': standard percentile method via bootsrapping.
-                      'hall': bias-corrected percentile method via bootstrapping.
-                  repl: number of repetitions of bootstrapping.
-                  alpha: significance level.
-                  seed: seed for bootstrapping 
-                  fontsize: legend and subtitles font sizes.
-                  supfontsize: super title font size. 
-                  figsize: size of whole figure.
-                  max_col_wrp: desired max possible columns when plotting.
-                      If impulse (columns) number < max_col_wrap, then plot upto impulse numbers.
-                  rect: 4-tuple. tight_layout argument.
-
-              Recommend setting for 5x5: max_col_wrap=5, figsize=(18,20) rect=(0,0,1,0.94~0.95)
-              """
-              assert method in ['asym', 'efron', 'hall']
-              if type(impulse) is str: 
-                  impulse = [impulse]
-              if type(response) is str: 
-                  response = [response]
-              impulse_indices = [self.column_indices[x] for x in impulse]
-              response_indices = [self.column_indices[x] for x in response]
-              # fetch obj
-              irf = self.model.irf(periods, )
-              irfcoefs = irf.orth_irfs if orth else irf.irfs
-
-              # case Asymptotic CI
-              if method == 'asym':
-                  # shape: (periods, K, K)
-                  q = scipy.stats.norm.ppf(1-alpha/2)
-                  lower = irfcoefs - q * irf.stderr(orth=orth)
-                  upper = irfcoefs + q * irf.stderr(orth=orth)
-
-              # case Efron's CI
-              elif method == 'efron':
-                  lower, upper = self.model.irf_errband_mc(orth=orth, repl=repl, steps=periods, 
-                                 signif=alpha, seed=seed)
-              # case Hall's CI
-              elif method == 'hall':
-                  # shape: (simulation, periods, K, K)
-                  ma_coll = self.model.irf_resim(orth=orth, repl=repl, steps=periods, seed=seed)
-                  low_idx = int(round(alpha / 2 * repl) - 1)
-                  upp_idx = int(round((1 - alpha / 2) * repl) - 1)
-
-                  ma_diff = ma_coll - irfcoefs
-                  ma_sort = np.sort(ma_diff, axis=0)  # sort to get quantiles
-                  lower, upper = irfcoefs - ma_sort[upp_idx], irfcoefs - ma_sort[low_idx]
-
-              # plot 0
-              signif = (1-alpha)*100
-              signif = int(signif) if signif.is_integer() else round(signif, 1)
-              m, n = len(response), len(impulse)
-              threshold = min(n, max_col_wrap)
-              x = np.arange(periods+1)
-              fig = plt.figure(figsize=figsize)
-              title = 'Forecast Error Impulse Response (FEIR)'
-              if orth: 
-                  title = 'Orthogonalised Impulse Response (OIR)'
-              plt.suptitle(title, fontsize=supfontsize,)
-              for i, residx in enumerate(response_indices):
-                  for j, impidx in enumerate(impulse_indices):
-                      ax = plt.subplot( math.ceil((m*n)/threshold), threshold, i*n + j+1)
-
-                      ax.plot( irfcoefs[:, residx, impidx], c='b', label='Response')
-                      ax.plot( lower[:, residx, impidx], c='r', linestyle='-', alpha=1,
-                               label='Upper {:.0%} {:s} CI'.format(1-alpha, method.capitalize()))
-                      ax.plot( upper[:, residx, impidx], c='r', linestyle='-', alpha=1,
-                               label='Lower {:.0%} {:s} CI'.format(1-alpha, method.capitalize()))
-                      ax.axhline(c='k', )#linewidth=1) #hlines
-                      ax.fill_between(x, lower[:, residx, impidx], upper[:, residx, impidx], color='b', 
-                                 alpha=.1, label='{:.0%} {:s} CI'.format(1-alpha, method.capitalize()) )
-
-                      # ax.set_title(f'{response[i]} response to {impulse[j]}', fontsize=fontsize)
-                      ax.set_title(f'{impulse[j]} shock to\n {response[i]}', fontsize=fontsize)
-              handles, labels = ax.get_legend_handles_labels()
-              fig.legend(handles, labels, loc='upper right', fontsize=fontsize)
-              plt.tight_layout(pad=0.5, rect=rect) # (left, bottom, right, top)
-              plt.show()
-
-          def fevd_plot(self, periods=5, top=3, figsize=(14,8), max_str_split=2):
-              """
-              Calculate Forecast Error Variance Decomposition of each target features
-              and plot it.
-              Inputs: 
-                  periods: desired lags to draw on the figure
-                  top: desired top k components will be selected and shown in each lag.
-                  figsize: figure size.
-              """
-              # initialization
-              res = self.model.fevd(periods)
-              idx2col = np.array(list( self.column_indices.items() ))
-              idx2col.sort(axis=-1)
-              idx2col = idx2col[:, -1]
-              # results
-              targets_fevd = res.decomp[self.label_columns_indices, :, :] # (target y, timestep, components x)
-              topidx = np.argsort(targets_fevd, axis=-1)[:, :, -top:]
-              topidx = topidx[:, :, ::-1]
-              data = np.take_along_axis(targets_fevd, topidx, axis=-1) * 100
-              names = idx2col[ topidx ]
-
-              index = np.arange(periods) + 0.3
-              bar_width = 0.4
-              columns = ['lag %i' %x for x in np.arange(periods)]
-              rows = ['top %i' %(i+1) for i in range(top)]
-              colors = plt.cm.BuPu(np.linspace(0, periods*0.1, top))
-
-              for i in range(len(self.label_columns)):
-                  # initialization
-                  y_offset = np.zeros(periods)
-                  cell_text = []
-                  plt.figure(figsize=figsize)
-                  # main
-                  for f in range(top):
-                      plt.bar(index, data[i, :, f], bar_width, bottom=y_offset, color=colors[f])
-                      y_offset = y_offset + data[i, :, f]
-                      cell_text.append( list(
-                          '\n_'.join(re.split('_(?!to)', x, maxsplit=max_str_split)) for x in names[i, :, f]
-                      ) )
-                  # table
-                  the_table = plt.table(cellText=cell_text, rowLabels=rows, rowColours=colors,
-                                    colLabels=columns, cellLoc='center',
-                                    loc='bottom', bbox=[0,-0.8,1,0.8])
-                  the_table.auto_set_font_size(False)
-                  the_table.set_fontsize(12)
-                  the_table.scale(1,4)
-                  # adjust layout
-                  plt.subplots_adjust(left=0.0, bottom=0.2)
-                  plt.ylabel("Percentage(%)")
-                  values = np.arange(0, 110, 10)
-                  plt.yticks(values)
-                  plt.xticks([])
-                  plt.title('Forecast Erro Variance Decomposition\nfor {}'.format(self.label_columns[i]))
-                  plt.show()
-
-      def var_error_I2(test, var_fit, targets, steps=1, I1=[], I2=[]):
-          print('VAR: Number of prediction steps: ', steps)
-          for i in range(0, len(targets)):
-              varobj = VARresults(var_fit, test, label_columns=targets[i])
-              beginning = varlag - 1 + steps
-              end = test.shape[0]
-              y = test[targets[i]][beginning:end]
-              length = y.shape[0]
-              if targets[i] in I2:
-                  y      = np.cumsum(y)  # first accumulation
-                  y      = y + y[0]      # first term correction
-                  y      = y.cumsum()    # second accumulation
-                  y      = y + y[0]      # second term correction
-                  yhat   = np.cumsum(varobj.predict(steps=steps, inplace=False))  # [:, steps-1])
-                  yhat   = yhat + yhat[0]  # first term correction
-                  yhat   = np.cumsum(yhat)
-                  yhat   = yhat + yhat[0]  # second term correction
-                  rmse   = mean_squared_error(y, yhat)**0.5
-                  mae    = mean_absolute_error(y, yhat)
-                  print('{:<28s}: RMSE={:>7.4f}; MAE={:>7.4f}'.format(targets[i], rmse, mae))
-              elif targets[i] in I1 and targets[i] not in I2:
-                  absolute_change = y.abs().sum()
-                  y      = y.cumsum()
-                  y      = y + y[0]        # term correction
-                  yhat   = np.cumsum(varobj.predict(steps=steps, inplace=False))  # [:, steps-1])
-                  yhat   = yhat + yhat[0]  # term correction
-                  rmse   = mean_squared_error(y, yhat)**0.5
-                  mae    = mean_absolute_error(y, yhat)
-                  print('{:<28s}: RMSE={:>7.4f}; MAE={:>7.4f}'.format(targets[i], rmse, mae))
-              else:
-                  yhat   = varobj.predict(steps=steps, inplace=False)  # [:, steps - 1]
-                  rmse   = mean_squared_error(y, yhat)**0.5
-                  mae    = mean_absolute_error(y, yhat)
-                  absolute_change = y.diff().abs().sum()
-                  print('{:<28s}: RMSE={:>7.4f}; MAE={:>7.4f}'.format(targets[i], rmse, mae))
-      ```
-
-      ## VECM Class
-
-
-      ```python
-      class VECM:
-          """
-          det: {"nc", "co", "ci", "lo", "li"}
-              "nc"- no deterministic terms
-              "co"- constant outside the cointegration relation
-              "ci"- constant within the cointegration relation
-              "lo"- linear trend outside the cointegration relation
-              "li"- linear trend within the cointegration relation
-          """
-          # shared functions
-          irplot = VARresults.irplot # only method 'asym' can work for VECM model.
-          durbin_watson_test =  VARresults.durbin_watson_test
-          residac_plot = VARresults.residac_plot
-          _core_evaluate = VARresults._core_evaluate
-
-          def __init__(self, endog, test, det=None, mask=None, label_columns=None):
-              """
-              endog: training dataset.
-              test: testing dataset.
-              det: please see docstring of build().
-              label_columns: list of strings as prediction targets.
-              mask: shape should be in line with test.
-              """
-              # endog, test must be pd.DataFrame
-              self.endog = endog
-              self.test = test
-              # initialization 
-              self.lag = np.nan
-              self.coint_rank = np.nan
-              self.det = det
-              if self.det is None: 
-                  self.det = 'co'
-
-              self.column_indices = {name: i for i, name in enumerate(test.columns)}
-              self.label_columns = test.columns
-              if label_columns is not None:
-                  self.label_columns = [label_columns] if type(label_columns) is str else label_columns
-              self.label_columns_indices = [self.column_indices[la] for la in self.label_columns]
-
-              # halfway initialization
-              self.gt = self.test[self.label_columns].values
-              self.mask = np.array(mask)
-
-          def __repr__(self):
-              return '\n'.join([
-                  f'Endogenous data shape: {self.endog.shape}', 
-                  f'Selected lag order: {self.lag}', 
-                  f'Cointegration rank: {self.coint_rank}', 
-                  f'Deterministic term: {self.det}'
-              ])
-
-          def select_lag(self, maxlags=15, det=None, ic=None, 
-                         verbose=False, inplace=False):
-              """
-              Inputs:
-                  det: {"nc", "co", "ci", "lo", "li"}
-                      "nc"- no deterministic terms
-                      "co"- constant outside the cointegration relation
-                      "ci"- constant within the cointegration relation
-                      "lo"- linear trend outside the cointegration relation
-                      "li"- linear trend within the cointegration relation
-                  ic: {"aic", "bic", "hqic", "fpe"}
-                      the desired information criteria to use.
-                  inplace: bool
-                      store lag inside if True.
-              Returns: 
-                  lag: scalar
-              """
-              if det is None: 
-                  det = self.det
-              res = vecm.select_order(self.endog, maxlags=maxlags, deterministic=det)
-
-              if verbose: 
-                  res.summary()
-
-              if ic is None:
-                  return res.selected_orders
-              lag = res.selected_orders[ic.lower()]
-              if inplace==True: 
-                  self.lag = lag
-              return lag
-
-          def select_coint_rank(self, det_order=0, diff_lag=None, method='trace', alpha=0.05, 
-                                verbose=False, inplace=False):  
-              # method is trace of maxeig
-              """
-              Perform Cointegration Johansen test based on trace/maxeig to select coint_rank.
-              Inputs: 
-                  det_order : int
-                      * -1 - no deterministic terms
-                      * 0 - constant term
-                      * 1 - linear trend
-                  diff_lag: number of lagged difference in model.
-                  method: can be trace or maxeig test method.
-                  alpha: significance level of the test.
-              Return:
-                  scalar cointegration rank
-              """
-              if diff_lag is None: 
-                  diff_lag = self.lag
-              coint_obj = vecm.select_coint_rank(self.endog, det_order=det_order, 
-                  k_ar_diff=diff_lag, method=method, signif=alpha)
-
-              if verbose: 
-                  coint_obj.summary()
-              if inplace == True: 
-                  self.coint_rank = coint_obj.rank
-              return coint_obj.rank
-
-          def build(self, diff_lag=None, coint_rank=None, det=None, **kwargs):
-              """
-              Build inplace VECM model. Update parameters if arg(s) is provided.
-              Inputs:
-                  diff_lag: number of lagged difference in model.
-                  det : {"nc", "co", "ci", "lo", "li"}
-                      "nc"- no deterministic terms
-                      "co"- constant outside the cointegration relation
-                      "ci"- constant within the cointegration relation
-                      "lo"- linear trend outside the cointegration relation
-                      "li"- linear trend within the cointegration relation
-              """
-              if diff_lag is None: 
-                  diff_lag = self.lag 
-              if coint_rank is None: 
-                  coint_rank = self.coint_rank
-              if det is None: 
-                  det = self.det
-              self.model = vecm.VECM(self.endog, k_ar_diff=diff_lag, coint_rank=coint_rank, 
-                                     deterministic=det, **kwargs
-                                    ).fit()
-              self.diff_lag = diff_lag
-              self.coint_rank = self.coint_rank
-              self.det = det
-
-          def predict(self, steps, inplace=False):
-              """
-              steps: n-steps-ahead prediction if steps=n. 
-              Only 'last' mode is available.
-              Return if inplace=False: 
-                  2D-array (predictions, features).
-              """
-              pred = self.model.predict(steps)[:, self.label_columns_indices]
-              if inplace:
-                  self.steps = steps
-                  self.pred = pred 
-                  return;
-              return pred
-
-          def evaluate(self, y_true=None, y_pred=None, multioutput='uniform_average', use_mask=False):
-              """
-              Calculate rmse and mae. 
-              mode: can be ['raw_values', 'uniform_average'].
-              use_mask: boolean or matrix. 
-                  Mask prediction and groudtruth when calculating performance.
-                  If true, use in-stored mask default to mask[self.steps:, self.label_columns].
-                  It should be the same shape as y_true and y_pred.
-              Return: 
-                  rmse, mae
-              """ 
-              if y_pred is None: 
-                  y_pred = self.pred.copy()
-              if y_true is None: 
-                  y_true = self.gt.copy()
-                  y_true = y_true[:steps]
-
-              if type(use_mask) in [pd.Series, pd.DataFrame]:
-                  mask = use_mask.values
-              elif type(use_mask) in [np.array, np.ndarray]:
-                  mask = use_mask
-              elif use_mask is True: 
-                  mask = self.mask.copy()
-                  mask = mask[:y_pred.shape[0], self.label_columns_indices ]
-              else:
-                  mask = None
-              return self._core_evaluate(y_true, y_pred, multioutput, mask)
-
-          def coint_matrix(self, give='beta', prec=2):
-              """
-              give: {'beta', 't_stats_beta'}
-                    The desired target to be returned.
-              """
-              if give=='beta': 
-                  values = self.model.beta
-              elif give == 't_stats_beta':
-                  values = self.model.tvalues_beta
-              values = np.round(values, prec)
-              res = pd.DataFrame(values, columns=self.endog.columns , index=self.endog.columns)
-              return res
-
-      # outside class
-      def vecm_error_summary(data, nobs, k_ar_diff=1, coint_rank=21, deterministic='ci', 
-                             targets=None):
-          if targets is None: 
-              targets = data.filter(regex='Depth_*').columns
-          train_data, test_data = data[0:-nobs], data[-nobs:]
-          train_data.index = pd.DatetimeIndex(train_data.index).to_period('D')
-          test_data.index = pd.DatetimeIndex(test_data.index).to_period('D')
-          vecm_model = vecm.VECM(train_data, k_ar_diff=k_ar_diff, coint_rank=coint_rank, 
-                                 deterministic=deterministic)
-          vecm_fit = vecm_model.fit()
-          # Check if residuals are autocorrelated
-          out = statsmodels.stats.stattools.durbin_watson(vecm_fit.resid)
-          print( '\n'.join([
-              'Durbin-Watson test-stat of autocorrelation of error terms:', 
-              'd=0: perfect autocorrelation', 
-              'd=2: no autocorrelation', 
-              'd=4: perfect negative autocorrelation.' 
-          ]))
-          for col, value in zip(train_data.columns, out):
-              print((col), ':', round(value, 2))
-
-          forecast = vecm_fit.predict(nobs)
-          forecast = pd.DataFrame(forecast, index=test_data.index, columns=test_data.columns)
-          print('\n\nRMSE and MAE of predicted target variables')
-          for col in targets:  # train_data.columns:
-              rmse = mean_squared_error(forecast[col], test_data[col],
-                                        squared=False)
-              mae = mean_absolute_error(forecast[col], test_data[col])
-              print('{}:\nRMSE = {:6.4f} | MAE = {:6.4f}'.format(col, rmse, mae))
-
-      def vecm_coint_matrix(data, give='beta', k_ar_diff=1, coint_rank=21, deterministic='ci'):
-          vecm_model = VECM(data, k_ar_diff=k_ar_diff, coint_rank=coint_rank, deterministic=deterministic)
-          vecm_fit = vecm_model.fit()
-          if give == 'beta':
-              values = vecm_fit.beta
-          elif give == 't_stats_beta':
-              values = vecm_fit.tvalues_beta
-          values = np.around(values, 2)
-          res = pd.DataFrame(values, index=data.columns)
-          return res
-
-      def vecm_rmse_mae(train, test, steps=1, vecm_order=1, vecm_coint=1):
-          test_len = test.shape[0] - steps
-          print('Prediction horizon:', steps)
-          vecm_order = vecm_order
-          for i in targets_indices:
-              yhat = np.array([])
-              y    = test.iloc[steps:(test_len+steps), i]
-              for t in range(0, test_len):
-                  vecmobj  = vecm.VECM(endog=train.append(test.iloc[0:t, ]), k_ar_diff=vecm_order, 
-                                       coint_rank=vecm_coint, deterministic="ci")
-                  vecm_fit = vecmobj.fit()
-                  yhat     = np.append(yhat, vecm_fit.predict(steps=steps)[steps-1, i])
-              if test.columns[i] in I2:
-                  yhat = np.cumsum(yhat)
-                  y    = np.cumsum(y)
-              else:
-                  pass
-              rmse = mean_squared_error(y, yhat)**0.5
-              mae  = mean_absolute_error(y, yhat)
-              print(test.columns[i], ' : RMSE = ', round(rmse, 4), '; MAE = ', round(mae, 4))
-      ```
-    </details>
+```python
+# Import libraries
+import pandas as pd
+import numpy as np
+import os
+import scipy
+from datetime import datetime, date 
+# from termcolor import colored
+import re
+import math
+import missingno as mnso
+from functools import partial
+
+import seaborn as sns
+import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib.axes._axes import _log as matplotlib_axes_logger
+# matplotlib_axes_logger.setLevel('ERROR')
+
+import tensorflow as tf
+import keras
+from sklearn import linear_model
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.decomposition import PCA
+
+import statsmodels
+import statsmodels.stats.stattools
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.stattools import grangercausalitytests
+from statsmodels.tsa import vector_ar
+from statsmodels.tsa.api import VAR
+from statsmodels.tsa.vector_ar import vecm
+from statsmodels.graphics.tsaplots import plot_acf
+from statsmodels.graphics.tsaplots import plot_pacf
+
+import warnings
+from statsmodels.tools.sm_exceptions import ValueWarning, HypothesisTestWarning
+warnings.simplefilter('ignore', ValueWarning)
+warnings.simplefilter('ignore', HypothesisTestWarning)
+warnings.filterwarnings('ignore', category=RuntimeWarning)
+
+image_path = '../input/acea-water-images/'
+datapath = '../input/acea-water-prediction/'
+modelpath = '../input/aceawatermodels/'
+```
+
+## Plotting Functions
+
+
+```python
+# plotting functions
+def feature_plots(data):
+    """Plot each group of features of aquifer dataframe"""
+    date_flag = 0
+    df = data.copy()
+    if df is pd.Series: 
+        df = df.to_frame()
+    # create Date column
+    if not 'Date' in df.columns.values:
+        df['Date'] = df.index
+        date_flag = 1
+    # plot Rainfalls
+    if df.columns.str.contains('Rainfall.*').any():
+        sns.relplot(x='Date', y='value', col='Feature', col_wrap=5, kind='line', 
+                    data = df.filter(regex='Date|^Rainfall_.+').melt(
+                            id_vars='Date', var_name='Feature', ignore_index=False))
+        plt.suptitle('Rainfalls', y=1.02)
+    # plot gounrdwaters and Volumes
+    if df.columns.str.contains('Depth_.*').any():
+        sns.relplot(x='Date', y='value', hue='Feature', kind='line', 
+                    data = df.filter(regex='Date|^Depth_.+').melt(
+                            id_vars='Date', var_name='Feature', ignore_index=False))
+        plt.suptitle('Groundwaters', y=1.02)
+    if df.columns.str.contains('Volume.*').any():
+        sns.relplot(x='Date', y='value', hue='Feature', kind='line', 
+                    data = df.filter(regex='Date|^Volume_.+').melt(
+                            id_vars='Date', var_name='Feature', ignore_index=False))
+        plt.suptitle('Volumes', y=1.02)
+    # plot Temperatures
+    if df.columns.str.contains('Temperature.*').any():
+        sns.relplot(x='Date', y='value', col='Feature', kind='line', 
+                    data = df.filter(regex='Date|^Temperature.+').melt(
+                            id_vars='Date', var_name='Feature', ignore_index=False))
+        plt.suptitle('Temperatures', y=1.02)
+    # plot Hydrometry
+    if df.columns.str.contains('Hydrome.*').any():
+        sns.relplot(x='Date', y='value', col='Feature', kind='line', 
+                    data = df.filter(regex='Date|^Hydrometry_.+').melt(
+                            id_vars='Date', var_name='Feature', ignore_index=False))
+        plt.suptitle('Hydrometries', y=1.02)
+    # plot Flow Rate
+    if df.columns.str.contains('Flow.*').any():
+        sns.relplot(x='Date', y='value', hue='Feature', kind='line', 
+                    data = df.filter(regex='Date|^Flow_.+').melt(
+                            id_vars='Date', var_name='Feature', ignore_index=False))
+        plt.suptitle('Flow Rates', y=1.02)
+    if df.columns.str.contains('Lake.*').any():
+        sns.relplot(x='Date', y='value', hue='Feature', kind='line', 
+                    data = df.filter(regex='Date|^Lake_.+').melt(
+                            id_vars='Date', var_name='Feature', ignore_index=False))
+        plt.suptitle('Lake Levels', y=1.02)
+    plt.show()
+    if date_flag:
+        df.drop(columns='Date', inplace=True)
+        
+def water_spring_feature_plots(df):
+    """Plot each group of features of aquifer dataframe"""
+    date_flag = 0
+    # create Date column
+    if not 'Date' in df.columns.values:
+        df['Date'] = df.index
+        date_flag = 1
+    # plot rainfalls
+    sns.relplot(x='Date', y='value', col='Feature', col_wrap=5, kind='line',
+                data = df.filter(regex='Date|^Rainfall_.+').melt(
+                        id_vars='Date', var_name='Feature', ignore_index=False))
+    plt.suptitle('Rainfalls', y=1.02)
+    # plot groundwater depths
+    sns.relplot(x='Date', y='value', hue='Feature', kind='line',
+                data = df.filter(regex='Date|^Depth_.+').melt(
+                        id_vars='Date', var_name='Feature', ignore_index=False))
+    plt.suptitle('Groundwaters', y=1.02)
+    # plot flow rate
+    sns.relplot(x='Date', y='value', hue='Feature', kind='line',
+                data = df.filter(regex='Date|^Flow_.+').melt(
+                        id_vars='Date', var_name='Feature', ignore_index=False))
+    plt.suptitle('Flow Rates', y=1.02)
+    # plot temperatures
+    sns.relplot(x='Date', y='value', col='Feature', kind='line',
+                data = df.filter(regex='Date|^Temperature.+').melt(
+                        id_vars='Date', var_name='Feature', ignore_index=False))
+    plt.suptitle('Temperatures', y=1.02)
+    if date_flag:
+        df.drop(columns='Date', inplace=True)
+
+def missingval_plot(df, figsize=(20,6), show=True):
+    """
+    Visualize index location of missin values of each feature.
+    Doesn't work for 1-dim df.
+    df: pd.DataFrame 
+    """
+    # check all are bool
+    if (df.dtypes != bool).any():
+        df = df.reset_index().T.isna()
+    f, ax = plt.subplots(nrows=1, ncols=1, figsize=figsize)
+    g = sns.heatmap(df, cmap='Blues', cbar=True, yticklabels=df.index.values)
+    # customize colorbar
+    colorbar = g.collections[0].colorbar
+    colorbar.set_ticks([0, 1])
+    colorbar.set_ticklabels(['non-missing', 'missing'])
+    # customize title
+    ax.set_title('Distribution of Missing Values', fontsize=16)
+    # customize font size in ticks
+    for tick in ax.xaxis.get_major_ticks():
+        tick.label.set_fontsize(12) 
+    for tick in ax.yaxis.get_major_ticks():
+        tick.label.set_fontsize(12)
+    if show: 
+        plt.show()
+
+def corrtri_plot(df, figsize=(10,10)):
+    """correlation plot of the dataframe"""
+    # sns.set() #: will cause plt warning later in lag_plot
+    c = df.corr()
+    mask = np.triu(c.corr(), k=1)
+    plt.figure(figsize=figsize)
+    plt.tick_params(axis='both', which='major', labelsize=10, 
+                    bottom=False, labelbottom=False, 
+                    top=False, labeltop=True)
+    g = sns.heatmap(c, annot=True, fmt='.1f', cmap='coolwarm', 
+                    square=True, mask=mask, linewidths=1, cbar=False)
+    plt.show()
+
+def periodogram(series, division=8):
+    """plot periodogram of the series to find most important frequency/periodicity"""
+    dt = 1
+    T = len(series.index)
+    t = np.arange(0, T, dt)
+    f = series.fillna(0)
+    n = len(t)
+    fhat = np.fft.fft(f, n, )
+    PSD = np.conj(fhat) / n
+    freq = np.arange(n) # * (1/(dt*n))
+    L = np.arange(1, np.floor(n/division), dtype="int") # n/4, otherwise too long of a stretch to see anything
+    
+    plt.plot(freq[L], np.abs(PSD[L]), linewidth=2, label='Lag Importance')
+    plt.xlim(freq[L[0]], freq[L[-1]])
+    plt.legend()
+    plt.hlines(0, xmin=0, xmax=n, colors='black')
+    plt.title('Periodogram of ' + series.name)
+    plt.show()
+    
+def rfft_plot(series, ylim=(0,400)):
+    """plot real valued fourier transform to find most important frequency/periodicity"""
+    fft = tf.signal.rfft(series)
+    f_per_dataset = np.arange(0, len(fft))
+
+    n_samples_d = len(series)
+    d_per_year = 365.2524
+    years_per_dataset = n_samples_d/(d_per_year)
+    f_per_year = f_per_dataset/years_per_dataset
+
+    plt.step(f_per_year, np.abs(fft))
+    plt.xscale('log')
+    plt.ylim(*ylim)
+    plt.xlim([0.1, max(plt.xlim())])
+    plt.xticks([1, 4, 12, 52, 365.2524], labels=['1/Year', '1/quarter', '1/month', '1/week', '1/day'])
+    _ = plt.xlabel('Frequency (log scale)')
+    plt.show()
+
+def metrics_plot(valdict, testdict=None, metrics='', verbose=False):
+    """
+    valdict/testdict (same shape): the dict form {keys : {xtick:value}} where the `metrics'
+             should be part of the `keys'. The inner dict will be plotted as a bar.
+    metrics: ylabels of the plot and also a list containing part/all of the key(s) of 
+             valdict/testdict.
+    verbose: report or not.
+    """
+    x = np.arange(len(valdict))
+    width=0.3
+    testdict_flag = False
+    if testdict is not None: 
+        testdict_flag = True
+        x2 = np.arange(len(testdict)) + 0.17
+        x = x-0.17
+    
+    fig, axs = plt.subplots(1, len(metrics), figsize=(10,5))
+    for i, key in enumerate(metrics):
+        val_performance = [valdict[model][key] for model in valdict.keys()]
+        axs[i].bar(x, val_performance, width, label='Validation')
+        axs[i].set_xticks(np.arange(len(val_performance)))
+        axs[i].set_xticklabels(list(valdict.keys()), rotation=90)
+        axs[i].set(ylabel=key)
+        if testdict_flag:
+            test_performance = [testdict[model][key] for model in testdict.keys()]
+            axs[i].bar(x2, test_performance, width, label='Test')
+        _ = axs[i].legend()
+    fig.tight_layout(pad=2)
+        
+    if verbose: 
+        for name, value_dict in valdict.items():
+            print(f'{name:16s}')
+            for key, val in value_dict.items():
+                if key not in metrics: continue
+                print(f'  {key:<20s}: {val:6.4f}')
+                
+def lag_plot(df, lag=1, redcols=None, figsize=(20,15)):
+    """
+    plot t+lag against t of each feature in df.
+    df: pd.dataframe
+    redcols: list/array of column names to be colored with red.
+    """
+    plt.figure(figsize=figsize)
+    for i, col in enumerate(df.columns):
+        ax = plt.subplot(len(df.columns)//5 +1 , 5, i+1)
+        color = 'k'
+        if redcols is not None and col in redcols:
+            color = 'r'
+        pd.plotting.lag_plot(df[col], lag=lag)
+        plt.title(col, color=color)
+    ax.figure.tight_layout(pad=0.5)
+    
+def acpac_plot(data, figsize=(10,5)):
+    """Autocorrelation and Partial-aurocorrelation plots."""
+    for i, col in enumerate(data.columns):
+        fig, ax = plt.subplots(1,2,figsize=figsize)
+        plot_acf(data[col], lags=30, title='AC: ' + data[col].name, 
+                 ax=ax[0])  # missing='drop'
+        plot_pacf(data[col], lags=30, title='PAC: ' + data[col].name, 
+                 ax=ax[1])
+        plt.show()
+
+def pca_plot(data, n_comp=None, regex=None, figsize=(5,3)):
+    """
+    Plot n_comp pricipal components of data via PCA.
+    data:   pd.DataFrame / np.ndarray
+    regex:  string pattern to filter data. 
+            Use all data if not specified.
+    n_comp: number of components desired in PCA. 
+            Default to data column numbers if not specified.
+    """
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_axes([0,0,1,1])
+    x = data
+    if regex is not None: 
+        x = x.filter(regex=regex)
+    xSfit = StandardScaler().fit_transform(x)
+    if n_comp is None:
+        n_comp = xSfit.shape[1]
+    pca = PCA(n_components=n_comp)
+    pca.fit(xSfit)
+    v = pca.explained_variance_ratio_.round(2)
+    xtick = range(1,n_comp+1)
+    ax.bar(xtick,v) # range(1,n_comp+1)
+    plt.xticks(xtick, x.columns, rotation='vertical')
+    plt.xlabel("PCA components")
+    plt.title("Variance Explained by each dimension")
+    plt.show()
+
+```
+
+## Data Engineering Functions
+
+
+```python
+# data engineering functions
+def data_frequency_transform(data, freq, logic_dict):
+    """
+    Downsampling (daily) data to weekly/monthly/user-defined(freq) data via methods in logic_dict.
+    Inputs: 
+        data: pd.DataFrame
+        freq: a string expressing desired frequency to be transform. Eg, '2D', '7D', 'W', 'M', 'Q'.
+        logic_dict: a dict specifying which methods (value) is used for which features/cols (key).
+    """
+    collector = []
+    for regex, method in logic_dict.items(): 
+        tmp = data.filter(regex=regex).resample(freq, label='right', closed='right').agg(method)
+        collector.append(tmp)
+    return pd.concat(collector, axis=1)
+
+def fillna(data, approach, **kwargs):
+    """
+    fill nan with the specified approach.
+    data: pd.DataFrame
+    approach: {'constant', 'mean', 'interpolate', 'movingavg', 'regression'}
+    """
+    if approach == 'constant':
+        return data.fillna(-99999)
+    elif approach == 'mean':
+        return data.fillna(data.mean(axis=0, skipna=True))
+    elif approach == 'median':
+        return data.fillna(data.median(axis=0, skipna=True))
+    elif approach == 'interpolate':
+        # data cannot contain datetime columns
+        # kwargs: method, axis, limit, limit_direction, limit_area, inplace
+        return data.interpolate(**kwargs)
+    elif approach == 'movingavg':
+        # kwargs: window, min_periods, center, win_type
+        return data.fillna(data.rolling(**kwargs).mean())
+    elif approach == 'regression':
+        # kwargs: window
+        df = data.copy()
+        names = df.columns.drop('Date', errors='ignore')
+        assert df.iloc[0].isna().sum() == 0
+        for t in range(1, df.shape[0]):
+            for feature in names:
+                if not np.isnan(df[feature].iloc[t]):
+                    continue
+                parameters = names.drop(feature)
+                parameters = df[parameters].iloc[t].dropna().index
+                model = linear_model.LinearRegression()
+                window = kwargs.get('window', 1)
+                front = max(t-window,0)
+                X = df[parameters].iloc[front:t]
+                y = df[feature].iloc[front:t] 
+                model.fit(X=X, y=y)
+                df[feature].iloc[t] = model.predict(df[parameters].iloc[t:t+1])
+        return df
+    else:
+        raise ValueError('Keyword not found for approach')
+
+# PCA requires no missing values and components to be stationary.
+def get_component_number(data, min_variance_share=0.8, leave_out_regex = "Depth.*"):
+    """
+    Return the number of components that first retrieve the desired share of variance 
+    via Principle Component Analysis.
+    Inputs: 
+        data: pd.DataFrame 
+        min_variance_share: desired described share of variance
+        leave_out_regex: pattern of columns in data that ought to be ignored.
+    """
+    names = data.columns.drop('Date', errors='ignore').drop(
+        data.filter(regex=leave_out_regex).columns, errors='ignore')
+    x = data.loc[:, names].values
+    x = StandardScaler().fit_transform(x)
+    explained_variance = 0
+    n = 0
+    while explained_variance < min_variance_share:
+        n = n + 1
+        pca = PCA(n_components=n)
+        #principalComponents = pca.fit_transform(x)
+        pca.fit(x)
+        explained_variance = pca.explained_variance_ratio_.sum()
+    print('Share of decribed variance: ', explained_variance)
+    print('Number of components: ', n)
+    return n
+
+# Buids you a new dataset with only the desired number of components. Inuputs:
+def build_pca_data(data, component_number=5, leave_out_regex="Depth.*", concat=True):
+    """
+    Builds a new df with only the desired number of components via PCA.
+    Inputs: 
+        data: pd.DataFrame 
+        component_number: desired number of components.
+        leave_out_regex: pattern of columns in data that ought to be ignored.
+    """
+    ori_cols = data.columns
+    names = data.columns.drop('Date', errors='ignore').drop(
+        data.filter(regex=leave_out_regex).columns, erros='ignore')
+    x = data.loc[:, names].values
+    # y = data.loc[:, target].values
+    x = StandardScaler().fit_transform(x)
+    pca = PCA(n_components=component_number)
+    principalComponents = pca.fit_transform(x)
+    principalDf = pd.DataFrame(data=principalComponents)  # , columns=['PC1', 'PC2', 'PC3'])
+    if concat: 
+        target = data.filter(regex=leave_out_regex).columns
+        finalDf = pd.concat([principalDf, df[target]], axis=1)
+        df.reindex(columns = ori_cols)
+        return finalDf
+    return principalDf
+
+def percent_change(data):
+    """
+    Calculate the %change between the last value and the mean of previous values.
+    Makes data more comparable if the abs values of the data change a lot.
+    Usage: df.rolling(window=20).aggregate(percent_change)
+    """
+    previous_values = data[:-1]
+    last_value = values[-1]
+    return (last_value - np.mean(previous_values)) / np.mean(previous_values)
+
+def replace_outliers(df, window=7, k=3, method='mean'):
+    """
+    Inputs:
+        df: pd.DataFrame/Series
+        window: rolling window size to decide rolling mean/std/median.
+        k: multiplier of rolling std.
+    Return: 
+        pd.DataFrame of the same shape as input df.
+    """
+    # de-mean
+    mean_series = df.rolling(window).mean()[window-1:]
+    abs_meandiff = (df[window-1:] - mean_series).abs()
+    std_series = df.rolling(window).std()[window-1:]
+    median_series = df.rolling(window).median()[window-1:]
+    # identify >k(=3 in default) standard deviations from zero
+    this_mask = abs_meandiff > (std_series * k)
+    tmp = df[:window-1].astype(bool)
+    tmp.values[:] = False
+    this_mask = pd.concat([tmp, this_mask], axis=0)
+    # Replace these values with the median accross the data
+    if method == 'median':
+        to_use = median_series
+    elif method == 'mean':
+        to_use = mean_series
+    else: 
+        raise ValueError(f'method {method} not found.')
+    return df.mask( this_mask, to_use )
+    
+def scale(train, val, test, approach='MinMax'):
+    """scale train (and test) data via MinMaxScalar/StandardScalar"""
+    if approach == 'MinMax':
+        scaler = MinMaxScaler(feature_range=(-1, 1))
+    elif approach == 'Standard':
+        scaler = StandardScaler()
+    # save DataFrame Info
+    # fit and transform train
+    scaler = scaler.fit(train)
+    train_scaled = pd.DataFrame(scaler.transform(train), columns=train.columns, index=train.index)
+    # transform val/test
+    val_scaled = pd.DataFrame(scaler.transform(val), columns=val.columns, index=val.index)
+    test_scaled = pd.DataFrame(scaler.transform(test), columns=test.columns, index=test.index)
+    return scaler, train_scaled, val_scaled, test_scaled
+
+# primary function: used by following self-defined classes
+def inverse_scale(scaler, data, indices):
+    """
+    Applies to both single and multi-timestep predictions and groundtruths.
+    Inputs:
+        scaler: MinMaxScaler/StandardScaler obj from sklearn which 
+                has fitted the orignal form of data.
+        data: scaled 3D nparray (batch, timestep, n_out). Doesn't accept 2D nparray.
+        indices: desired column indices used in scaler to scale each corresponding data columns back.
+    Return: 
+        inverse-scaled 3D array of the same shape as input data.
+    PS: To recover 2D data back, please directly use scaler.inverse_transform().
+    """
+    batch_size, timestep, n_out = data.shape[0], data.shape[1], data.shape[2]
+    
+    if 'MinMaxScaler' in str(type(scaler)):
+        return ((data.reshape(-1, n_out) - scaler.min_[indices]) / scaler.scale_[indices]
+               ).reshape(batch_size, timestep, n_out)
+    elif 'StandardScaler' in str(type(scaler)):
+        return (data.reshape(-1, n_out) * scaler.scale_[indices] + scaler.mean_[indices]
+               ).reshape(batch_size, timestep, n_out)
+
+# primary function: used by following self-defined classes
+def inverse_diff(history, pred, start=1):
+    """
+    Recover corresponding value of prediction in differenced feature back to the one before diff().
+    Applies to both single and multi-timestep predictions of a single feature.
+    Inputes: 
+        history: 1d array/series of the feature.
+        pred: 2d nparray (batch, timestep) corresponding to the feature, or 
+              1d nparray (collection of 1-step-ahead predictions) corresponding to the feature.
+        start: the starting position in history to add on values to pred.
+               Usually start = pred[0]'s index -1 since pred is based on previous obersvation 
+               due to diff().
+    Return: 
+        nparray with same shape as pred.
+    """
+    # if I1, nth steps and mode='normal': varlag+steps-1 :  varlag+steps-1+len(pred)
+    # if I1, n-steps and mode='last': gt[-steps-1 :-1]
+    # if I0, nth steps and mode='normal': varlag+steps : varlag+steps+len(pred)
+    # if I0, n-steps and mode='last': gt[ -steps: ]
+    if type(history) is pd.Series:
+        history = history.values
+    if pred.ndim == 2: 
+        # supports 2D last-mode calculation (reshape 1D pred to (1, -1) before calling the function)
+        # supports 3D normal-mode calculation
+        batch_size, timestep = pred.shape[0], pred.shape[1]
+        return pred.cumsum(axis=1) + \
+            history[start:start+batch_size].repeat(timestep).reshape(batch_size, timestep)
+    if pred.ndim == 1: 
+        # only supports normal-mode model calculation.
+        return pred + history[start:start+len(pred)]
+    
+
+```
+
+## Testing Functions
+
+
+```python
+# testing functions
+def adftest(series, verbose=True, **kwargs):
+    """adfuller + printing"""
+    # kwargs: maxlag, regression, autolag
+    from statsmodels.tsa.stattools import adfuller
+    res = adfuller(series.values, **kwargs)
+    if verbose:
+        print('ADF Statistic: {:13f} \tp-value: {:10f}'.format(res[0], res[1]))
+        if 'autolag' in kwargs.keys():
+            print('IC: {:6s} \t\t\tbest_lag: {:9d}'.format(kwargs['autolag'], res[2]))
+        print('Critical Values: ', end='')
+        for key, value in res[4].items():
+            print('{:2s}: {:>7.3f}\t'.format(key, value), end='')
+    return res
+
+def adfuller_table(df, verbose=False, alpha=0.05, **kwargs):
+    """iterate over adftest() to generate a table"""
+    columns = [f'AIC_{int(alpha*100)}%level', 'AIC_bestlag', f'BIC_{int(alpha*100)}%level', 'BIC_bestlag']
+    table = pd.DataFrame(columns=columns)
+    for col in df.columns: 
+        row = []
+        for autolag in ['AIC', 'BIC']:
+            res = adftest(df[col], verbose=verbose, autolag=autolag, **kwargs)
+            sig = True if abs(res[0])>abs(res[4][f'{int(alpha*100)}%']) else False
+            row.extend([sig, res[2]])
+        table = table.append(pd.Series(row, index=table.columns, name=col))
+    table.index.name = 'ADFuller Table alpha={}'.format(alpha)
+    return table
+
+def grangers_causation_table(data, xnames, ynames, maxlag, test='ssr_chi2test', alpha=None):
+    """
+    Check Granger Causality of all possible combinations of the Time series.
+    The values in the table are the P-Values/boolean (reject H0 or not). 
+    H0: X does not cause Y (iff coefs of X on Y is 0)
+    Inputs:
+        data      : pandas dataframe containing the time series variables
+        xnames    : list of TS variable names to test granger causality on ynames.
+        ynames    : list of TS variable names to be granger predicted.
+        maxlag    : max lags.
+        test      : 'ssr_ftest', 'ssr_chi2test', 'lrtest', 'params_ftest'
+        alpha     : significance level. Return boolean table if alpha is specified != None.
+    """
+    res = pd.DataFrame(np.zeros((len(xnames), len(ynames))), columns=ynames, index=xnames)
+    for c in res.columns:
+        for r in res.index:
+            test_result = grangercausalitytests(data[[r, c]], maxlag=maxlag, verbose=False)
+            p_values = [ round(test_result[i+1][0][test][1],4) for i in range(maxlag) ]
+            min_p_value = np.min(p_values)
+            res.loc[r, c] = min_p_value
+    res.columns = res.columns + '_y'
+    res.index =  res.index + '_x'
+    if alpha is None: 
+        res.index.name = 'Granger Causation Table'
+        return res
+    res.index.name = 'Granger Causation Table alpha={}'.format(alpha)
+    return res < alpha
+
+```
+
+## Machine Learning Class
+
+
+```python
+class WindowGenerator:
+    """
+    Initialize a window generator that helps slice train/val/test_df into inputs and labels
+    that is suitable for supervised learning of machine learning approaches.
+    
+    Explanation for input_width, label_width, shift and total_window_size:
+        Given inputs of size (batch, input_width, features), we wish to train a model that 
+        its output shape is equivalent to the labels shape (batch, labels_width, features)
+        which has a timestep gap = shift. total_window_size = input_width+shift.
+    Eg, w=WindowGenerator(input_width=2, label_width=1, shift=1, ...)
+        Given past 2 hrs, predict the target values in the next hr. (total window is 3)
+    Eg, w=WindowGenerator(input_width=2, label_width=1, shift=2, ...)
+        Given past 2 hrs, predict the result values in the 2nd hr. (total window is 4)
+    Eg, w=WindowGenerator(input_width=2, label_width=2, shift=2, ...)
+        Given past 2 hrs, predict the result values in next 2 hrs. (total window is 4)
+    """
+    
+    def __init__(self, input_width, label_width, shift, train_df, val_df, test_df, 
+                 batch_size=1, shuffle=True, mask=None, label_columns=None):
+        assert input_width + shift >= label_width, "total_window_size can't be negative."
+        # Store the raw data. [batch_size, timestep, features]
+        self.train_df = train_df
+        self.val_df = val_df
+        self.test_df = test_df
+        self.batch_size = batch_size
+        self.shuffle = shuffle # make_dataset
+
+        # Work out the label column indices.
+        self.column_indices = {name: i for i, name in enumerate(train_df.columns)}
+        self.label_columns = train_df.columns
+        if label_columns is not None:
+            self.label_columns = [label_columns] if type(label_columns) is str else label_columns
+        self.label_columns_indices = [self.column_indices[la] for la in self.label_columns]
+        
+
+        # Work out the window parameters.
+        self.input_width = input_width
+        self.label_width = label_width
+        self.shift = shift
+
+        self.total_window_size = input_width + shift
+
+        self.input_slice = slice(0, input_width) #slice from idx=0 till idx=input_width-1(included)
+        self.input_indices = np.arange(self.total_window_size)[self.input_slice]
+        
+        self.label_start = self.total_window_size - self.label_width
+        self.labels_slice = slice(self.label_start, None) # slice from idx=label_start wihout end
+        self.label_indices = np.arange(self.total_window_size)[self.labels_slice]
+        
+        # mask
+        self.mask = mask 
+        if mask is not None: 
+            assert mask.shape[0] == self.test_df.shape[0]
+            self.mask = mask[self.label_columns].values[self.label_indices[0]:]
+        
+    def __repr__(self):
+        return '\n'.join([
+            f'Total window size: {self.total_window_size}',
+            f'Input indices: {self.input_indices}',
+            f'Label indices: {self.label_indices}',
+            f'shuffle: {self.shuffle}',
+            f'Label column name(s): {self.label_columns}'])
+
+    def split_window(self, features):
+        """
+        Split data into inputs and labels.
+        features: [batch=None, self.total_window_size, features=None]
+        """
+        inputs = features[:, self.input_slice, :]
+        # return all features if self.label_columns is None
+        # Ow, return only featrues in self.label_columns in order
+        labels = features[:, self.labels_slice, :]
+        if self.label_columns is not None:
+            labels = tf.stack(
+                [labels[:, :, self.column_indices[name]] for name in self.label_columns],
+                axis=-1)
+        # Slicing doesn't preserve static shape information, so set the shapes
+        # manually. This way the `tf.data.Datasets` are easier to inspect.
+        inputs.set_shape([None, self.input_width, None])
+        labels.set_shape([None, self.label_width, None])
+
+        return inputs, labels
+    
+    def inverse_transform_evaluate(self, model, scaler=None, diff=None, history=None, which='test', 
+                               multioutput='uniform_average', return_dict=False, inplace=True):
+        # doesn't provide mask evaluation
+        assert which in ['val', 'test'], f'not allowed input: which={which}'
+        # default test mode
+        pred = model.predict(self.test)
+        outputs = self.y_test
+        start = len(self.train_df)+len(self.val_df)+self.label_indices[0]
+        if which == 'val':
+            pred = model.predict(self.val)
+            outputs = self.y_val
+            start = len(self.train_df)+self.label_indices[0]
+        # invert scale
+        if scaler is not None:
+            pred = inverse_scale(scaler, pred, self.label_columns_indices)
+            outputs = inverse_scale(scaler, outputs, self.label_columns_indices)
+        # invert diff
+        if diff is not None: 
+            assert history is not None, 'diff is provided but history is not.'
+            for i, col in enumerate(self.label_columns):
+                if col not in diff:
+                    continue
+                pred[:,:,i] = inverse_diff(history[col], pred[:,:,i], start)
+                outputs[:,:,i] = inverse_diff(history[col], outputs[:,:,i], start )
+        # metrics
+        rmse, mae = self._core_evaluate(outputs, pred, multioutput)
+        if inplace: 
+            self._multiout = True if multioutput=='raw_values' else False
+            self.pred = pred
+            self.outputs = outputs
+            self.rmse = rmse
+            self.mae = mae
+        if return_dict:
+            return {'root_mean_squared_error': rmse, 'mean_absolute_error': mae}
+        return rmse, mae
+    
+    def _core_evaluate(self, y_true, y_pred, multioutput):
+        # doesn't provide mask evaluation
+        n_out = len(self.label_columns)
+        rmse = mean_squared_error(y_true.reshape(-1, n_out), y_pred.reshape(-1, n_out), 
+                                 multioutput=multioutput, squared=False)
+        mae = mean_absolute_error(y_true.reshape(-1, n_out), y_pred.reshape(-1, n_out), 
+                                  multioutput=multioutput)
+        return rmse, mae
+    
+    def sample_plot(self, plot_cols, model=None, max_subplots=3, figsize=(15, 10)):
+        inputs, labels = self.example # [batch_size, timestep, features]
+        plt.figure(figsize=figsize, )
+        if type(plot_cols) is str: 
+            plot_cols = [plot_cols]
+        plot_cols_index = [self.column_indices[col] for col in plot_cols]
+        
+        max_n = min(max_subplots, len(inputs)) # arg vs batch_size
+        max_j = len(plot_cols)
+        for n in range(max_n):
+            for j in range(max_j):
+                ax = plt.subplot(max_n, max_j, max_j*n + j+1)
+                ax.figure.tight_layout(pad=1.0)
+                # plot_cols[j] as Inputs
+                plt.title(f'y:{plot_cols[j]} [scaled]')
+                plt.plot(self.input_indices, inputs[n, :, plot_cols_index[j]],
+                         label='Inputs', marker='.', zorder=-10)
+                # Groundtruth of plots_col[j] == labels[label_col_index] (same string)
+                if self.label_columns:
+                    tmp = {name: i for i, name in enumerate(self.label_columns)}
+                    label_col_index = self.tmp.get(plot_cols[j], None)
+                else:
+                    label_col_index = plot_cols_index[j]
+                if label_col_index is None:
+                    continue
+                plt.scatter(self.label_indices, labels[n, :, label_col_index], 
+                            edgecolors='k', label='Groundtruth', c='#2ca02c', s=64)
+                # Prediction of plots_col[j]
+                if model is not None:
+                    predictions = model(inputs)
+                    plt.scatter(self.label_indices, predictions[n, :, label_col_index],
+                              marker='X', edgecolors='k', label='Prediction', c='#ff7f0e', s=64)
+                if n == 0:
+                    plt.legend()
+                plt.xlabel(f'Sample {n} in batch.  Timestep [scaled]')
+                
+    def plot(self, plot_cols=None, model=None, figsize=(20, 15), use_mask=False, ):
+        """
+        Plot model prediction and groundtruth (untransformed) if model is provided.
+        Otherwise, plot prediciton and groundtruth (transformed) stored inside from 
+        inverse_transform_evaluate(..., inplace=True), ie, self.pred/outputs. 
+        Output error if neither model nor self.pred/outputs is found.
+        """
+        assert isinstance(use_mask, bool)
+        labels = self.test_df[self.label_columns]
+        dates = labels[self.label_columns[0]].index[self.label_indices[0]:]
+        if plot_cols is None: 
+            plot_cols = self.label_columns
+        if type(plot_cols) is str: 
+            plot_cols = [plot_cols]
+        assert set(plot_cols).issubset(set(self.label_columns)), 'plot_cols must be a subset of targets'
+        label2idx = {name:i for i, name in enumerate(self.label_columns)}
+        plot_cols_index = [label2idx[x] for x in plot_cols]
+        
+        # pred & gt
+        if model is not None: 
+            pred = model.predict(self.test)
+            gt = labels[self.label_columns].values[self.label_indices[0]:]
+            rmse, mae = self._core_evaluate(gt, pred, multioutput='raw_values')
+        else:       # fetch from inner storage
+            pred = self.pred
+            gt = self.outputs
+            if self._multiout:
+                rmse, mae = self.rmse, self.mae
+            else: 
+                rmse, mae = self._core_evaluate(gt, pred, multioutput='raw_values')
+            if gt.shape[1] == 1: 
+                gt = gt.reshape(-1, gt.shape[2])
+            else: 
+                collector = []
+                collector.append( [gt[batch,0,:] for batch in range(gt.shape[0])] )
+                collector.append( gt[-1, 1:, :] )
+                gt = np.concatenate(collector)
+
+        # plot
+        plt.figure(figsize=figsize, )
+        for j, name in enumerate(plot_cols):
+            ax = plt.subplot(len(plot_cols), 1,  j+1)
+            j = plot_cols_index[j]
+            # groundtruth
+            if use_mask:
+                mask = self.mask.copy()
+                plt.scatter(dates[~mask[:,j]], gt[~mask[:,j], j], 
+                            c='k', linestyle='-', alpha=0.7, marker='+', label='Groundtruth')
+            else: 
+                plt.scatter(dates, gt[:, j], 
+                            c='k', linestyle='-', alpha=0.7, marker='+', label='Groundtruth')
+            # prediction: (batch_size, timestep, features)
+            if self.label_width == 1: # normal mode
+                plt.plot(dates, pred[:, 0, j],
+                         c='red', linestyle='-', alpha=0.5, marker='+', label='Prediction')
+            else:                     # last mode
+                plt.plot(dates[-pred.shape[1]:], pred[-1, :, j],
+                         c='red', linestyle='-', alpha=0.5, marker='+', label='Prediction')
+            # layout
+            ax.legend()
+            plt.gca().xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%y-%b'))
+            outstr = 'transformed' if model is not None else 'inversed transformed'
+            plt.title('{} [{}]: RMSE={:6.4f}, MAE={:6.4f} (imputation incl.)'.format(
+                name, outstr, rmse[j], mae[j]), )
+        ax.figure.tight_layout(pad=1.0)
+        plt.show()
+
+    def _make_dataset(self, data):
+        """convert df/data to timeseries dataset format of (inputs, labels) pairs"""
+        data = np.array(data, dtype=np.float32)
+        ds = tf.keras.preprocessing.timeseries_dataset_from_array(
+          data=data,
+          targets=None,
+          sequence_length=self.total_window_size,
+          sequence_stride=1,
+          shuffle=self.shuffle,
+          batch_size=self.batch_size,)
+        # apply split window
+        ds = ds.map(self.split_window)
+        return ds
+    
+    @property
+    def train(self):
+        return self._make_dataset(self.train_df)
+
+    @property
+    def val(self):
+        return self._make_dataset(self.val_df)
+
+    @property
+    def test(self):
+        return self._make_dataset(self.test_df)
+
+    @property
+    def example(self):
+        """Get and cache an example batch of `inputs, labels` for plotting."""
+        result = getattr(self, '_example', None)
+        if result is None:
+            # No example batch was found, so get one from the `.train` dataset
+            result = next(iter(self.train))
+            # And cache it for next time
+            self._example = result
+        return result
+    
+    @property
+    def X_train(self):    
+        return np.vstack( list(self.train.map(lambda x,y: x).as_numpy_iterator())
+                ).reshape(-1, self.input_width, len(self.column_indices) )
+    
+    @property
+    def X_val(self):    
+        return np.vstack( list(self.val.map(lambda x,y: x).as_numpy_iterator())
+                ).reshape(-1, self.input_width, len(self.column_indices) )
+    
+    @property
+    def X_test(self):    
+        return np.vstack( list(self.test.map(lambda x,y: x).as_numpy_iterator())
+                ).reshape(-1, self.input_width, len(self.column_indices) )
+    
+    @property
+    def y_train(self):    
+        return np.vstack( list(self.train.map(lambda x,y: y).as_numpy_iterator())
+                ).reshape(-1, self.label_width, len(self.label_columns) )
+    
+    @property
+    def y_val(self):    
+        return np.vstack( list(self.val.map(lambda x,y: y).as_numpy_iterator())
+                ).reshape(-1, self.label_width, len(self.label_columns) )
+    
+    @property
+    def y_test(self):
+        return np.vstack( list(self.test.map(lambda x,y: y).as_numpy_iterator())
+                ).reshape(-1, self.label_width, len(self.label_columns) )
+
+class Baseline(tf.keras.Model):
+    """Single-step naive baseline: y(t+1) = y(t)"""
+    def __init__(self, label_index=None, return_sequence=False):
+        super().__init__()
+        self.label_index = [label_index] if type(label_index) is int else label_index
+        self.return_sequence = return_sequence
+
+    def call(self, inputs):
+        if self.label_index is None:
+            return inputs
+
+        if self.return_sequence:
+            result = tf.stack( [inputs[:, :, j] for j in self.label_index] ,  axis=2)
+            return result
+        else: 
+            result = tf.stack( [inputs[:, -1, j] for j in self.label_index] ,  axis=1)
+            return result[:, tf.newaxis, :]
+
+class MultiStepBaseline(tf.keras.Model):
+    """
+    Multistep naive baseline
+        mode='last': y([t+1,...,t+k]) = y([t, t, ..., t])
+        mode='repeat': y([t+1,...,t+k]) = y([t-k+1, t-k+2, ..., t])
+    """
+    def __init__(self, out_steps, label_index=None, mode='last'):
+        super().__init__()
+        self.out_steps = out_steps
+        self.label_index = [label_index] if type(label_index) is int else label_index
+        self.mode = mode
+        
+    def call(self, inputs):
+        if self.label_index is None and self.mode=='last': 
+            return tf.tile(inputs[:, -1:, :], [1, self.out_steps, 1])
+        elif self.label_index is None and self.mode=='repeat':
+            return inputs
+        
+        if self.mode == 'last':
+            result = tf.stack( [inputs[:, -1, j] for j in self.label_index] ,  axis=1)
+            return tf.tile(result[:, tf.newaxis, :], [1, self.out_steps, 1])
+        elif self.mode == 'repeat':
+            k = inputs.shape[1]
+            # within 1 cycle repeat
+            if self.out_steps <= k:
+                return tf.stack([inputs[:, -self.out_steps:, j] for j in self.label_index], axis=2)
+            # cyclic repeat
+            cycle = self.out_steps // k + 1
+            cut = cycle*k - self.out_steps
+            tmp = tf.stack( [ inputs[:,:,j] for j in self.label_index ], axis=2)
+            results = tf.tile(tmp, [1, cycle, 1])
+            return results[:, cut:, :]
+        else: 
+            raise ValueError(f'No method called {self.mode}')
+    
+def compile_and_fit(model, window, max_epochs=30, patience=2, lr_rate=0.001, verbose=2):
+    """
+    Compile the given model and fit it via given window. 
+    
+    Inputs: 
+        model: self-defined machine learning model
+        window: object defined by class WindowGenerator()
+        max_epochs: desired maximum epochs when fitting model to training data
+        patience: Stop fitting if val_loss doesn't decrease for n=patience epochs.
+        verbose: show training progress in different ways if 1 or 2. Turn off if 0.
+    """
+    early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', 
+                                                      patience=patience, 
+                                                      mode='min')
+    model.compile(loss=tf.losses.MeanSquaredError(),
+                  optimizer=tf.optimizers.Adam(lr_rate),
+                  metrics=[tf.metrics.RootMeanSquaredError(), tf.metrics.MeanAbsoluteError()])
+
+    history = model.fit(window.train, epochs=max_epochs,
+                        validation_data=window.val,
+                        callbacks=[early_stopping], verbose=verbose)
+    return history
+
+def feature_importance(model, Xdata=None, batch_size=1, scale=0.5, 
+                       verbose=False, method='const', alpha=0.05):
+    """
+    Perturb on Xdata and detect feature importance. The larger the rmse/effect is, the more 
+    important the feature is.
+    Inputs:
+        model: that accepts 3-dim data (Xdata)
+        Xdata: 3-dim input excluding groundtruth. If None, create a random normal data automatically.
+        scale: float in [0,1]. Determine the stdandard deviation of the perturbation. (~N(0, sigma))
+        alpha: significance level
+    Returns: 
+        list of rmse between original prediction and prediction after perturbation of each feature.
+    """
+    def data_gen(batch, input_width, n_out):
+        while True:
+            x = np.random.rand(batch, input_width, n_out)  # batch x time x features
+            yield x
+    # generate base data
+    if Xdata is None: 
+        g = data_gen(batch_size, model.input_shape[1], model.input_shape[-1]) 
+        x = np.concatenate([next(g)[0] for _ in range(50)]) # Get a sample of data
+    else: 
+        x = Xdata.copy()
+    # calculate perturbation effects
+    perturbation = None
+    if method == 'const':
+        perturbation = scale
+    elif method == 'random':
+        perturbation = np.random.normal(0.0, scale=scale, size=x.shape[:2])
+    orig_out = model.predict(x)
+    N = orig_out.size
+    collector = []
+    direction_collector = []
+    for i in range(model.input_shape[-1]):  # iterate over the three features
+        new_x = x.copy()
+        new_x[:, :, i] = new_x[:, :, i] + perturbation
+        perturbed_out = model.predict(new_x)
+        diff = perturbed_out - orig_out
+        
+        effect = ((diff) ** 2).mean() ** 0.5
+        collector.append(effect)
+        
+        pos, neg = (diff > 0).sum(), (diff < 0).sum()
+        if pos > N*(1-alpha): 
+            symbol = '+'
+        elif neg > N*(1-alpha): 
+            symbol = '-'
+        else: 
+            symbol = ''
+        direction_collector.append( symbol )
+        
+        if verbose: 
+            print('Variable {:>4}, perturbation effect: {:>8.4f}'.format(i+1, effect))
+    return collector, direction_collector
+
+def feature_importance_plot(importance, direction=None, names=None, model_str='LSTM', figsize=(10,8)):
+    # https://www.analyseup.com/learn-python-for-data-science/python-random-forest-feature-importance-plot.html
+    
+    #Create arrays from feature importance and feature names
+    feature_importance = np.array(importance)
+    if names is None: 
+        names = np.arange(importance)+1
+    feature_names = np.array(names)
+
+    #Create a DataFrame using a Dictionary
+    data={'feature_names':feature_names,'feature_importance':feature_importance}
+    fi_df = pd.DataFrame(data)
+
+    #Sort the DataFrame in order decreasing feature importance
+    fi_df.sort_values(by=['feature_importance'], ascending=False,inplace=True)
+    
+    #Define size of bar plot
+    plt.figure(figsize=figsize)
+    #Plot Searborn bar chart
+    adjusted_posi = 0.2
+    g = sns.barplot(x=fi_df['feature_importance'], y=fi_df['feature_names'])
+    if direction is not None:
+        for index, (_, row) in enumerate(fi_df.iterrows()):
+            g.text(row.feature_importance, index+adjusted_posi,
+                   direction[index], color='black', ha="center", size=15)
+    #Add chart labels
+    plt.title( model_str + ' Feature Importance')
+    plt.xlabel('Feature Importance (rmse)')
+    plt.ylabel('Feature Names')
+```
+
+## VAR Class
+
+
+```python
+class VARresults:
+    
+    def __init__(self, obj, test, mask=None, label_columns=None):
+        """
+        obj: VARResultsWrapper from statsmodels package.
+        label_columns: list of strings as prediction targets.
+        mask: shape should be in line with test.
+        """
+        assert 'VARResultsWrapper' in str(type(obj))
+        # test must be pd.DataFrame/Series
+        self.model = obj
+        self.test = test 
+        self.column_indices = {name: i for i, name in enumerate(test.columns)}
+        
+        self.label_columns = test.columns
+        if label_columns is not None:
+            self.label_columns = [label_columns] if type(label_columns) is str else label_columns
+        self.label_columns_indices = [self.column_indices[la] for la in self.label_columns]
+        
+        self.gt = self.test[self.label_columns].values[self.model.k_ar:]
+        self.mask = mask 
+        if mask is not None: 
+            assert mask.shape[0] == self.test.shape[0]
+            self.mask = np.array(mask)[self.model.k_ar:, self.label_columns_indices]
+        
+    def initialise(self):
+        """Initialise gt and delete pred"""
+        self.gt = self.test[self.label_columns].values[self.model.k_ar:]
+        if hasattr(self, 'pred'):
+            del self.pred
+        
+    def durbin_watson_test(self, verbose=False):
+        res = statsmodels.stats.stattools.durbin_watson(self.model.resid)
+        for col, value in zip(self.model.names, res):
+            print( '{:32s}: {:>6.2f}'.format(col, value))
+        if verbose: 
+            print( '\n'.join([
+                'Durbin-Watson test-stat of autocorrelation of error terms:', 
+                'd=0: perfect autocorrelation', 
+                'd=2: no autocorrelation', 
+                'd=4: perfect negative autocorrelation.' 
+            ]))
+        return res
+    
+    def residac_plot(self, cols=None, figsize=(16, 8), ylim=(-.3, .3)):
+        """
+        cols: can be integer/str list.
+        """
+        plt.figure(figsize=figsize)
+        # case pd.Series
+        if self.model.resid.ndim ==1:
+            ax = pd.plotting.autocorrelation_plot(self.model.resid)
+            ax.set(ylim=ylim)
+            plt.title(f'Residual Autocorrelation: {resid.name}')
+            plt.show()
+
+        # case pd.DataFrame         
+        assert cols is not None, "cols is required since model dimension > 1."
+        if type(cols) is str: cols = [cols]
+        resid = self.model.resid
+        if type(resid) is np.ndarray: 
+            resid = pd.DataFrame(resid, columns=self.endog.columns)
+        for count, (name, series) in enumerate(resid[cols].iteritems()):
+            ax = plt.subplot( len(cols)//3 +1, 3, count+1)
+            ax.figure.tight_layout(pad=0.5)
+            ax.set(ylim=ylim)
+            pd.plotting.autocorrelation_plot(series, ax=ax)
+            plt.title(f'Residual Autocorrelation: {name}')
+        plt.tight_layout()
+        plt.show()
+    
+    def predict(self, steps=1, mode='normal', inplace=False):
+        """
+        steps: n-steps-ahead prediction if steps=n.
+        mode: 'normal': predict for each sample.
+              'last': only predict the last sample. 
+                      Eg, predict 14 days in a row from last sample.
+        Return if inplace=False: 
+            2D-array (predictions, features).
+        """
+        assert mode in ['normal', 'last'], 'Error: mode value not allowed'
+        varlag = self.model.k_ar
+        pred = []
+        
+        if mode == 'normal':
+            pred_collector = []
+            for s in range(self.test.shape[0] -varlag +1 -steps):
+                pred = self.model.forecast(y=self.test.values[s:s+varlag], steps=steps)
+                pred_collector.append(pred)
+            pred = np.stack(pred_collector)[:, :, self.label_columns_indices]
+            pred = pred[:,-1,:]
+        elif mode == 'last':
+            s = -steps -varlag
+            pred = self.model.forecast(y=self.test.values[s:s+varlag], steps=steps)
+            pred = pred[:, self.label_columns_indices]
+        if inplace: 
+            self.mode = mode
+            self.steps = steps
+            self.pred = pred
+            return ;
+        return pred
+        
+    def inverse_transform(self, diff, history, start=None, inplace=False):
+        """
+        Inverse transform in-built pred and test on features in the diff list 
+        based on history and start and the mode you use in predict() function.
+        Applies to both 3D or 2D arrays.
+        Return: 
+            pred, gt (if inplace=False).
+        """
+        varlag = self.model.k_ar
+        pred = self.pred.copy()
+        gt = self.gt.copy()
+        if start is None: 
+            start = -gt.shape[0] -1
+            
+        for i, col in enumerate(self.label_columns):
+            if col not in diff: 
+                continue
+            if pred.ndim == 2:
+                if self.mode == 'normal':
+                    pred[:,i] = inverse_diff(history[col], pred[:,i], start=start)
+                elif self.mode == 'last':
+                    # -1: based on previous day: only works for I1 variable.
+                    pred[:,i] = pred[:,i].cumsum() + history[col][-self.steps-1] 
+            elif pred.ndim ==3:
+                pred[:,:,i] = inverse_diff(history[col], pred[:,:,i], start=start)
+            gt[:,i] = inverse_diff(history[col], gt[:,i], start=start)
+
+        if inplace:
+            self.pred = pred
+            self.gt = gt
+            return ;
+        return pred, gt
+    
+    def evaluate(self, y_true=None, y_pred=None, multioutput='uniform_average', use_mask=True):
+        """
+        Calculate rmse and mae. 
+        mode: can be ['raw_values', 'uniform_average'].
+        use_mask: boolean or matrix. 
+            Mask prediction and groudtruth when calculating performance.
+            It should be the same shape as y_true and y_pred.
+        Return: 
+            rmse, mae
+        """                 
+        if y_pred is None: 
+            y_pred = self.pred.copy()
+        if y_true is None:
+            y_true = self.gt.copy()
+            if self.mode == 'normal':
+                y_true = y_true[self.steps-1:]
+            elif self.mode == 'last':
+                y_true = y_true[-self.steps:]
+        if use_mask is True: 
+            mask = self.mask.copy()
+            if self.mode == 'normal':
+                mask = mask[self.steps-1:]
+            elif self.mode == 'last': 
+                mask = mask[-self.steps:]
+        elif type(use_mask) is [pd.Series, pd.DataFrame, np.array, np.ndarray]:
+            mask = use_mask
+        else:
+            mask = None
+        return self._core_evaluate(y_true, y_pred, multioutput, mask)
+    
+    def _core_evaluate(self, y_true, y_pred, multioutput, mask=None):
+        """inner private function. Shouldn't be called from outside by via member functions."""
+        if mask is not None: 
+            rmse, mae = [], []
+            for j in range(len(self.label_columns)):
+                rmsee = mean_squared_error(y_true[~mask[:,j], j], y_pred[~mask[:,j], j], squared=False)
+                maee = mean_absolute_error(y_true[~mask[:,j], j], y_pred[~mask[:,j], j])
+                rmse.append(rmsee)
+                mae.append(maee)
+            rmse = np.array(rmse)
+            mae = np.array(mae)
+            if multioutput == 'uniform_average':
+                rmse = rmse.mean()
+                mae = mae.mean()
+        else:
+            rmse = mean_squared_error(y_true, y_pred, multioutput=multioutput, squared=False)
+            mae = mean_absolute_error(y_true, y_pred, multioutput=multioutput)
+        return rmse, mae
+    
+    def inverse_transform_evaluate(self, diff, history, start=None, steps=1, 
+                                   mode='normal', multioutput='uniform_average', use_mask=False):
+        """
+        do predict(), inverse_transform(), and evaluate() all at once, but with 
+        inplace=True setting, which is fixed and not adjustable.
+        Return: 
+            rmse, mae (follow from evaluate())
+        """
+        inplace = True
+        if inplace:
+            self.predict(steps, mode, inplace=inplace)
+            self.gt = self.test[self.label_columns].values[self.model.k_ar:] # initialise
+            self.inverse_transform(diff, history, start, inplace=inplace)
+        return self.evaluate(multioutput=multioutput, use_mask=use_mask)
+        
+    def plot(self, figsize=(20,15), use_mask=False):
+        """
+        plot prediction(red line) and groundtruth(black point).
+        Inputs: 
+            figsize: figure size.
+            use_mask: evaluate mae, rmse and plot the groundtruth with or without mask.
+        """
+        rmse, mae = self.evaluate(multioutput='raw_values', use_mask=use_mask)
+        
+            
+        plt.figure(figsize=figsize)
+        for j in range(len(self.label_columns)):
+            ax = plt.subplot(len(self.label_columns), 1, j+1)
+            dates = test[self.label_columns[j]].index[self.model.k_ar:]
+            # groundtruth
+            if use_mask: 
+                mask = self.mask.copy() if use_mask == True else use_mask
+                ax.scatter(dates[~mask[:,j]], self.gt[~mask[:,j], j], 
+                           c='k', linestyle='-', alpha=0.7, marker='+', label='Groundtruth')
+            else: 
+                ax.scatter(dates, self.gt[:, j], 
+                           c='k', linestyle='-', alpha=0.7, marker='+', label='Groundtruth')
+            # prediction
+            if self.mode == 'normal':
+                ax.plot(dates[self.steps-1:], self.pred[:,j],
+                        c='red', linestyle='-', alpha=0.5, marker='+', label='Prediction')
+            elif self.mode == 'last':
+                ax.plot(dates[-self.steps:], self.pred[:,j],
+                       c='r', linestyle='-', alpha=0.5, marker='+', label='Prediction')
+            # title and x/y-labels
+            ax.set(title='{:>32s}: RMSE={:6.4f}, MAE={:6.4f}'.format(targets[j], rmse[j], mae[j]), )
+            plt.gca().xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%y-%b'))
+            ax.legend()
+        ax.figure.tight_layout(pad=1)
+        plt.show()
+        
+    def irplot(self, impulse, response, periods=14, orth=False, method='asym', 
+           repl=1000, alpha=0.05, seed=None, fontsize=16, supfontsize=24,
+           figsize=(17,30), max_col_wrap=3, rect=(0,0,1,0.96)):
+        """
+        Plot Impulse Reponse of `impulse' on `response'.
+        Inputs:
+            impulse: a list of strings containing which features cause impulse(s) on response.
+            response: a list of strings containing which features response the shock.
+            periods: the number of periods in which a shock is observed in plots.
+            orth: bool. Plot Orthogonalised IR if True.
+            method: {'asym', 'efron', 'hall'}
+                'asym': use asymptotic stderr as error band.
+                'efron': standard percentile method via bootsrapping.
+                'hall': bias-corrected percentile method via bootstrapping.
+            repl: number of repetitions of bootstrapping.
+            alpha: significance level.
+            seed: seed for bootstrapping 
+            fontsize: legend and subtitles font sizes.
+            supfontsize: super title font size. 
+            figsize: size of whole figure.
+            max_col_wrp: desired max possible columns when plotting.
+                If impulse (columns) number < max_col_wrap, then plot upto impulse numbers.
+            rect: 4-tuple. tight_layout argument.
+            
+        Recommend setting for 5x5: max_col_wrap=5, figsize=(18,20) rect=(0,0,1,0.94~0.95)
+        """
+        assert method in ['asym', 'efron', 'hall']
+        if type(impulse) is str: 
+            impulse = [impulse]
+        if type(response) is str: 
+            response = [response]
+        impulse_indices = [self.column_indices[x] for x in impulse]
+        response_indices = [self.column_indices[x] for x in response]
+        # fetch obj
+        irf = self.model.irf(periods, )
+        irfcoefs = irf.orth_irfs if orth else irf.irfs
+        
+        # case Asymptotic CI
+        if method == 'asym':
+            # shape: (periods, K, K)
+            q = scipy.stats.norm.ppf(1-alpha/2)
+            lower = irfcoefs - q * irf.stderr(orth=orth)
+            upper = irfcoefs + q * irf.stderr(orth=orth)
+            
+        # case Efron's CI
+        elif method == 'efron':
+            lower, upper = self.model.irf_errband_mc(orth=orth, repl=repl, steps=periods, 
+                           signif=alpha, seed=seed)
+        # case Hall's CI
+        elif method == 'hall':
+            # shape: (simulation, periods, K, K)
+            ma_coll = self.model.irf_resim(orth=orth, repl=repl, steps=periods, seed=seed)
+            low_idx = int(round(alpha / 2 * repl) - 1)
+            upp_idx = int(round((1 - alpha / 2) * repl) - 1)
+            
+            ma_diff = ma_coll - irfcoefs
+            ma_sort = np.sort(ma_diff, axis=0)  # sort to get quantiles
+            lower, upper = irfcoefs - ma_sort[upp_idx], irfcoefs - ma_sort[low_idx]
+        
+        # plot 0
+        signif = (1-alpha)*100
+        signif = int(signif) if signif.is_integer() else round(signif, 1)
+        m, n = len(response), len(impulse)
+        threshold = min(n, max_col_wrap)
+        x = np.arange(periods+1)
+        fig = plt.figure(figsize=figsize)
+        title = 'Forecast Error Impulse Response (FEIR)'
+        if orth: 
+            title = 'Orthogonalised Impulse Response (OIR)'
+        plt.suptitle(title, fontsize=supfontsize,)
+        for i, residx in enumerate(response_indices):
+            for j, impidx in enumerate(impulse_indices):
+                ax = plt.subplot( math.ceil((m*n)/threshold), threshold, i*n + j+1)
+
+                ax.plot( irfcoefs[:, residx, impidx], c='b', label='Response')
+                ax.plot( lower[:, residx, impidx], c='r', linestyle='-', alpha=1,
+                         label='Upper {:.0%} {:s} CI'.format(1-alpha, method.capitalize()))
+                ax.plot( upper[:, residx, impidx], c='r', linestyle='-', alpha=1,
+                         label='Lower {:.0%} {:s} CI'.format(1-alpha, method.capitalize()))
+                ax.axhline(c='k', )#linewidth=1) #hlines
+                ax.fill_between(x, lower[:, residx, impidx], upper[:, residx, impidx], color='b', 
+                           alpha=.1, label='{:.0%} {:s} CI'.format(1-alpha, method.capitalize()) )
+                
+                # ax.set_title(f'{response[i]} response to {impulse[j]}', fontsize=fontsize)
+                ax.set_title(f'{impulse[j]} shock to\n {response[i]}', fontsize=fontsize)
+        handles, labels = ax.get_legend_handles_labels()
+        fig.legend(handles, labels, loc='upper right', fontsize=fontsize)
+        plt.tight_layout(pad=0.5, rect=rect) # (left, bottom, right, top)
+        plt.show()
+
+    def fevd_plot(self, periods=5, top=3, figsize=(14,8), max_str_split=2):
+        """
+        Calculate Forecast Error Variance Decomposition of each target features
+        and plot it.
+        Inputs: 
+            periods: desired lags to draw on the figure
+            top: desired top k components will be selected and shown in each lag.
+            figsize: figure size.
+        """
+        # initialization
+        res = self.model.fevd(periods)
+        idx2col = np.array(list( self.column_indices.items() ))
+        idx2col.sort(axis=-1)
+        idx2col = idx2col[:, -1]
+        # results
+        targets_fevd = res.decomp[self.label_columns_indices, :, :] # (target y, timestep, components x)
+        topidx = np.argsort(targets_fevd, axis=-1)[:, :, -top:]
+        topidx = topidx[:, :, ::-1]
+        data = np.take_along_axis(targets_fevd, topidx, axis=-1) * 100
+        names = idx2col[ topidx ]
+        
+        index = np.arange(periods) + 0.3
+        bar_width = 0.4
+        columns = ['lag %i' %x for x in np.arange(periods)]
+        rows = ['top %i' %(i+1) for i in range(top)]
+        colors = plt.cm.BuPu(np.linspace(0, periods*0.1, top))
+        
+        for i in range(len(self.label_columns)):
+            # initialization
+            y_offset = np.zeros(periods)
+            cell_text = []
+            plt.figure(figsize=figsize)
+            # main
+            for f in range(top):
+                plt.bar(index, data[i, :, f], bar_width, bottom=y_offset, color=colors[f])
+                y_offset = y_offset + data[i, :, f]
+                cell_text.append( list(
+                    '\n_'.join(re.split('_(?!to)', x, maxsplit=max_str_split)) for x in names[i, :, f]
+                ) )
+            # table
+            the_table = plt.table(cellText=cell_text, rowLabels=rows, rowColours=colors,
+                              colLabels=columns, cellLoc='center',
+                              loc='bottom', bbox=[0,-0.8,1,0.8])
+            the_table.auto_set_font_size(False)
+            the_table.set_fontsize(12)
+            the_table.scale(1,4)
+            # adjust layout
+            plt.subplots_adjust(left=0.0, bottom=0.2)
+            plt.ylabel("Percentage(%)")
+            values = np.arange(0, 110, 10)
+            plt.yticks(values)
+            plt.xticks([])
+            plt.title('Forecast Erro Variance Decomposition\nfor {}'.format(self.label_columns[i]))
+            plt.show()
+    
+def var_error_I2(test, var_fit, targets, steps=1, I1=[], I2=[]):
+    print('VAR: Number of prediction steps: ', steps)
+    for i in range(0, len(targets)):
+        varobj = VARresults(var_fit, test, label_columns=targets[i])
+        beginning = varlag - 1 + steps
+        end = test.shape[0]
+        y = test[targets[i]][beginning:end]
+        length = y.shape[0]
+        if targets[i] in I2:
+            y      = np.cumsum(y)  # first accumulation
+            y      = y + y[0]      # first term correction
+            y      = y.cumsum()    # second accumulation
+            y      = y + y[0]      # second term correction
+            yhat   = np.cumsum(varobj.predict(steps=steps, inplace=False))  # [:, steps-1])
+            yhat   = yhat + yhat[0]  # first term correction
+            yhat   = np.cumsum(yhat)
+            yhat   = yhat + yhat[0]  # second term correction
+            rmse   = mean_squared_error(y, yhat)**0.5
+            mae    = mean_absolute_error(y, yhat)
+            print('{:<28s}: RMSE={:>7.4f}; MAE={:>7.4f}'.format(targets[i], rmse, mae))
+        elif targets[i] in I1 and targets[i] not in I2:
+            absolute_change = y.abs().sum()
+            y      = y.cumsum()
+            y      = y + y[0]        # term correction
+            yhat   = np.cumsum(varobj.predict(steps=steps, inplace=False))  # [:, steps-1])
+            yhat   = yhat + yhat[0]  # term correction
+            rmse   = mean_squared_error(y, yhat)**0.5
+            mae    = mean_absolute_error(y, yhat)
+            print('{:<28s}: RMSE={:>7.4f}; MAE={:>7.4f}'.format(targets[i], rmse, mae))
+        else:
+            yhat   = varobj.predict(steps=steps, inplace=False)  # [:, steps - 1]
+            rmse   = mean_squared_error(y, yhat)**0.5
+            mae    = mean_absolute_error(y, yhat)
+            absolute_change = y.diff().abs().sum()
+            print('{:<28s}: RMSE={:>7.4f}; MAE={:>7.4f}'.format(targets[i], rmse, mae))
+```
+
+## VECM Class
+
+
+```python
+class VECM:
+    """
+    det: {"nc", "co", "ci", "lo", "li"}
+        "nc"- no deterministic terms
+        "co"- constant outside the cointegration relation
+        "ci"- constant within the cointegration relation
+        "lo"- linear trend outside the cointegration relation
+        "li"- linear trend within the cointegration relation
+    """
+    # shared functions
+    irplot = VARresults.irplot # only method 'asym' can work for VECM model.
+    durbin_watson_test =  VARresults.durbin_watson_test
+    residac_plot = VARresults.residac_plot
+    _core_evaluate = VARresults._core_evaluate
+    
+    def __init__(self, endog, test, det=None, mask=None, label_columns=None):
+        """
+        endog: training dataset.
+        test: testing dataset.
+        det: please see docstring of build().
+        label_columns: list of strings as prediction targets.
+        mask: shape should be in line with test.
+        """
+        # endog, test must be pd.DataFrame
+        self.endog = endog
+        self.test = test
+        # initialization 
+        self.lag = np.nan
+        self.coint_rank = np.nan
+        self.det = det
+        if self.det is None: 
+            self.det = 'co'
+        
+        self.column_indices = {name: i for i, name in enumerate(test.columns)}
+        self.label_columns = test.columns
+        if label_columns is not None:
+            self.label_columns = [label_columns] if type(label_columns) is str else label_columns
+        self.label_columns_indices = [self.column_indices[la] for la in self.label_columns]
+        
+        # halfway initialization
+        self.gt = self.test[self.label_columns].values
+        self.mask = np.array(mask)
+        
+    def __repr__(self):
+        return '\n'.join([
+            f'Endogenous data shape: {self.endog.shape}', 
+            f'Selected lag order: {self.lag}', 
+            f'Cointegration rank: {self.coint_rank}', 
+            f'Deterministic term: {self.det}'
+        ])
+    
+    def select_lag(self, maxlags=15, det=None, ic=None, 
+                   verbose=False, inplace=False):
+        """
+        Inputs:
+            det: {"nc", "co", "ci", "lo", "li"}
+                "nc"- no deterministic terms
+                "co"- constant outside the cointegration relation
+                "ci"- constant within the cointegration relation
+                "lo"- linear trend outside the cointegration relation
+                "li"- linear trend within the cointegration relation
+            ic: {"aic", "bic", "hqic", "fpe"}
+                the desired information criteria to use.
+            inplace: bool
+                store lag inside if True.
+        Returns: 
+            lag: scalar
+        """
+        if det is None: 
+            det = self.det
+        res = vecm.select_order(self.endog, maxlags=maxlags, deterministic=det)
+        
+        if verbose: 
+            res.summary()
+            
+        if ic is None:
+            return res.selected_orders
+        lag = res.selected_orders[ic.lower()]
+        if inplace==True: 
+            self.lag = lag
+        return lag
+    
+    def select_coint_rank(self, det_order=0, diff_lag=None, method='trace', alpha=0.05, 
+                          verbose=False, inplace=False):  
+        # method is trace of maxeig
+        """
+        Perform Cointegration Johansen test based on trace/maxeig to select coint_rank.
+        Inputs: 
+            det_order : int
+                * -1 - no deterministic terms
+                * 0 - constant term
+                * 1 - linear trend
+            diff_lag: number of lagged difference in model.
+            method: can be trace or maxeig test method.
+            alpha: significance level of the test.
+        Return:
+            scalar cointegration rank
+        """
+        if diff_lag is None: 
+            diff_lag = self.lag
+        coint_obj = vecm.select_coint_rank(self.endog, det_order=det_order, 
+            k_ar_diff=diff_lag, method=method, signif=alpha)
+        
+        if verbose: 
+            coint_obj.summary()
+        if inplace == True: 
+            self.coint_rank = coint_obj.rank
+        return coint_obj.rank
+    
+    def build(self, diff_lag=None, coint_rank=None, det=None, **kwargs):
+        """
+        Build inplace VECM model. Update parameters if arg(s) is provided.
+        Inputs:
+            diff_lag: number of lagged difference in model.
+            det : {"nc", "co", "ci", "lo", "li"}
+                "nc"- no deterministic terms
+                "co"- constant outside the cointegration relation
+                "ci"- constant within the cointegration relation
+                "lo"- linear trend outside the cointegration relation
+                "li"- linear trend within the cointegration relation
+        """
+        if diff_lag is None: 
+            diff_lag = self.lag 
+        if coint_rank is None: 
+            coint_rank = self.coint_rank
+        if det is None: 
+            det = self.det
+        self.model = vecm.VECM(self.endog, k_ar_diff=diff_lag, coint_rank=coint_rank, 
+                               deterministic=det, **kwargs
+                              ).fit()
+        self.diff_lag = diff_lag
+        self.coint_rank = self.coint_rank
+        self.det = det
+        
+    def predict(self, steps, inplace=False):
+        """
+        steps: n-steps-ahead prediction if steps=n. 
+        Only 'last' mode is available.
+        Return if inplace=False: 
+            2D-array (predictions, features).
+        """
+        pred = self.model.predict(steps)[:, self.label_columns_indices]
+        if inplace:
+            self.steps = steps
+            self.pred = pred 
+            return;
+        return pred
+
+    def evaluate(self, y_true=None, y_pred=None, multioutput='uniform_average', use_mask=False):
+        """
+        Calculate rmse and mae. 
+        mode: can be ['raw_values', 'uniform_average'].
+        use_mask: boolean or matrix. 
+            Mask prediction and groudtruth when calculating performance.
+            If true, use in-stored mask default to mask[self.steps:, self.label_columns].
+            It should be the same shape as y_true and y_pred.
+        Return: 
+            rmse, mae
+        """ 
+        if y_pred is None: 
+            y_pred = self.pred.copy()
+        if y_true is None: 
+            y_true = self.gt.copy()
+            y_true = y_true[:steps]
+        
+        if type(use_mask) in [pd.Series, pd.DataFrame]:
+            mask = use_mask.values
+        elif type(use_mask) in [np.array, np.ndarray]:
+            mask = use_mask
+        elif use_mask is True: 
+            mask = self.mask.copy()
+            mask = mask[:y_pred.shape[0], self.label_columns_indices ]
+        else:
+            mask = None
+        return self._core_evaluate(y_true, y_pred, multioutput, mask)
+        
+    def coint_matrix(self, give='beta', prec=2):
+        """
+        give: {'beta', 't_stats_beta'}
+              The desired target to be returned.
+        """
+        if give=='beta': 
+            values = self.model.beta
+        elif give == 't_stats_beta':
+            values = self.model.tvalues_beta
+        values = np.round(values, prec)
+        res = pd.DataFrame(values, columns=self.endog.columns , index=self.endog.columns)
+        return res
+        
+# outside class
+def vecm_error_summary(data, nobs, k_ar_diff=1, coint_rank=21, deterministic='ci', 
+                       targets=None):
+    if targets is None: 
+        targets = data.filter(regex='Depth_*').columns
+    train_data, test_data = data[0:-nobs], data[-nobs:]
+    train_data.index = pd.DatetimeIndex(train_data.index).to_period('D')
+    test_data.index = pd.DatetimeIndex(test_data.index).to_period('D')
+    vecm_model = vecm.VECM(train_data, k_ar_diff=k_ar_diff, coint_rank=coint_rank, 
+                           deterministic=deterministic)
+    vecm_fit = vecm_model.fit()
+    # Check if residuals are autocorrelated
+    out = statsmodels.stats.stattools.durbin_watson(vecm_fit.resid)
+    print( '\n'.join([
+        'Durbin-Watson test-stat of autocorrelation of error terms:', 
+        'd=0: perfect autocorrelation', 
+        'd=2: no autocorrelation', 
+        'd=4: perfect negative autocorrelation.' 
+    ]))
+    for col, value in zip(train_data.columns, out):
+        print((col), ':', round(value, 2))
+
+    forecast = vecm_fit.predict(nobs)
+    forecast = pd.DataFrame(forecast, index=test_data.index, columns=test_data.columns)
+    print('\n\nRMSE and MAE of predicted target variables')
+    for col in targets:  # train_data.columns:
+        rmse = mean_squared_error(forecast[col], test_data[col],
+                                  squared=False)
+        mae = mean_absolute_error(forecast[col], test_data[col])
+        print('{}:\nRMSE = {:6.4f} | MAE = {:6.4f}'.format(col, rmse, mae))
+
+def vecm_coint_matrix(data, give='beta', k_ar_diff=1, coint_rank=21, deterministic='ci'):
+    vecm_model = VECM(data, k_ar_diff=k_ar_diff, coint_rank=coint_rank, deterministic=deterministic)
+    vecm_fit = vecm_model.fit()
+    if give == 'beta':
+        values = vecm_fit.beta
+    elif give == 't_stats_beta':
+        values = vecm_fit.tvalues_beta
+    values = np.around(values, 2)
+    res = pd.DataFrame(values, index=data.columns)
+    return res
+
+def vecm_rmse_mae(train, test, steps=1, vecm_order=1, vecm_coint=1):
+    test_len = test.shape[0] - steps
+    print('Prediction horizon:', steps)
+    vecm_order = vecm_order
+    for i in targets_indices:
+        yhat = np.array([])
+        y    = test.iloc[steps:(test_len+steps), i]
+        for t in range(0, test_len):
+            vecmobj  = vecm.VECM(endog=train.append(test.iloc[0:t, ]), k_ar_diff=vecm_order, 
+                                 coint_rank=vecm_coint, deterministic="ci")
+            vecm_fit = vecmobj.fit()
+            yhat     = np.append(yhat, vecm_fit.predict(steps=steps)[steps-1, i])
+        if test.columns[i] in I2:
+            yhat = np.cumsum(yhat)
+            y    = np.cumsum(y)
+        else:
+            pass
+        rmse = mean_squared_error(y, yhat)**0.5
+        mae  = mean_absolute_error(y, yhat)
+        print(test.columns[i], ' : RMSE = ', round(rmse, 4), '; MAE = ', round(mae, 4))
+```
 
 # Aquifer Auser
 
