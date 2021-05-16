@@ -23,4 +23,4 @@ The desired outcome is a notebook that can generate four mathematical models, on
 ![image](https://user-images.githubusercontent.com/32351981/109770250-4bfecc80-7c36-11eb-8a06-b90e5c6d88aa.png)
 
 
-## OUR SOLUSTIONS (Wen-Kai Chung, Benne Janssen): [Please click here for a look](/todisplay/main.md)
+## OUR SOLUSTIONS (Wen-Kai Chung, Benne Janssen): [Please click here for No-Code Version](https://www.kaggle.com/wkchung/water-prediction-via-var-vecm-lstm-mannheim-team?scriptVersionId=57663002) or [with-Code Version](/todisplay/main.md)
